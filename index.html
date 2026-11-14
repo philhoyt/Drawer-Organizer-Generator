@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Design custom 3D-printable bins that fill a drawer.">
+<style>[hidden]{display:none!important}body{margin:0}img{max-width:100%}</style>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#1C1C1A">
+<title>Drawer Organizer Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: workbench. Controls rail on the left, live 3D on the right. The drawer floor map is where you draw bins. */
+:root {
+  --bg: #E7E6E0;
+  --panel: #F5F4EF;
+  --ink: #1C1C1A;
+  --muted: #66655E;
+  --line: #CFCDC4;
+  --bin: #F2B200;
+  --bin-deep: #C98F00;
+  --bin-soft: #E9C55A;
+  --case: #242422;
+  --case-line: #3A3A37;
+  --pocket: #151514;
+  --stage: #DCDAD2;
+  --ok: #2F7D4A;
+  --warn: #A3511B;
+  --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --body: "Barlow", "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141413; --panel: #1D1D1B; --ink: #ECEAE2; --muted: #9B998F; --line: #34332F;
+    --bin: #F5B800; --bin-deep: #D69A00; --bin-soft: #8E7426; --case: #0B0B0A; --case-line: #2C2C29; --pocket: #000;
+    --stage: #232321; --ok: #5DBB7E; --warn: #E08A4F; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141413; --panel: #1D1D1B; --ink: #ECEAE2; --muted: #9B998F; --line: #34332F;
+  --bin: #F5B800; --bin-deep: #D69A00; --bin-soft: #8E7426; --case: #0B0B0A; --case-line: #2C2C29; --pocket: #000;
+  --stage: #232321; --ok: #5DBB7E; --warn: #E08A4F; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.45; padding: 20px 16px 40px; }
+.wrap { max-width: 1240px; margin: 0 auto; display: grid; gap: 20px; }
+
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; border-bottom: 2px solid var(--ink); padding-bottom: 14px; }
+.brand { display: grid; gap: 2px; }
+.brand h1 { font-family: var(--display); font-weight: 800; font-size: 1.05rem; letter-spacing: .14em; text-transform: uppercase; margin: 0; }
+.brand p { margin: 0; color: var(--muted); font-size: .9rem; }
+.code-plate { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.code { font-family: var(--display); font-weight: 800; font-size: clamp(3rem, 9vw, 5.25rem); line-height: .85; letter-spacing: .01em; background: var(--bin); color: #1C1C1A; padding: 6px 14px 2px; border-radius: 3px; font-variant-numeric: tabular-nums; }
+.code.empty { background: transparent; color: var(--muted); border: 2px dashed var(--line); }
+.code-meta { font-family: var(--mono); font-size: .8rem; color: var(--muted); display: grid; gap: 2px; font-variant-numeric: tabular-nums; }
+.code-meta b { color: var(--ink); font-weight: 600; }
+
+.main { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 860px) { .main { grid-template-columns: minmax(0, 1fr); } .stage-col { position: static; } }
+
+.rail { display: grid; gap: 14px; min-width: 0; }
+.group { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 14px; display: grid; gap: 12px; min-width: 0; }
+.group > h2 { font-family: var(--display); font-weight: 600; font-size: .95rem; letter-spacing: .12em; text-transform: uppercase; margin: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.group > h2 small { font-family: var(--body); letter-spacing: 0; text-transform: none; font-weight: 400; color: var(--muted); font-size: .82rem; }
+.group.disabled { opacity: .45; pointer-events: none; }
+
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.seg button { font: inherit; font-size: .88rem; border: 0; background: transparent; color: var(--ink); padding: 8px 6px; cursor: pointer; border-left: 1px solid var(--line); line-height: 1.2; }
+.seg button:first-child { border-left: 0; }
+.seg button small { display: block; font-family: var(--mono); font-size: .7rem; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.seg button[aria-pressed="true"] small { color: var(--bin); }
+
+.floor { width: 100%; height: auto; display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
+.floor .cell { fill: transparent; stroke: var(--case-line); stroke-width: .8; cursor: crosshair; }
+.floor .cell:hover { fill: rgba(242, 178, 0, .18); }
+.floor .cell.taken { cursor: grab; }
+.floor .bin { fill: var(--bin-soft); stroke: var(--case); stroke-width: 1.5; pointer-events: none; }
+.floor .bin.on { fill: var(--bin); stroke: #fff; stroke-width: 2.5; }
+.floor .stack-mark { fill: none; stroke: #1C1C1A; stroke-width: 1.2; stroke-dasharray: 3 2.5; opacity: .55; pointer-events: none; }
+.floor .bin-num { font-family: var(--display); font-weight: 800; fill: #1C1C1A; pointer-events: none; }
+.floor .axis { font-family: var(--mono); font-weight: 600; fill: var(--muted); }
+.map-note { font-size: .82rem; color: var(--muted); margin: 0; }
+
+.toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip { font-family: var(--mono); font-size: .75rem; border: 1px solid var(--line); background: transparent; color: var(--ink); padding: 4px 8px; border-radius: 3px; cursor: pointer; }
+.chip:hover { border-color: var(--ink); }
+.chip span { color: var(--muted); font-family: var(--body); }
+.chip.quiet { font-family: var(--body); font-size: .8rem; }
+.toolbar .lbl { font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-right: 2px; }
+
+.binlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 260px; overflow-y: auto; }
+.binlist li { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 3px; padding: 4px 4px 4px 6px; cursor: pointer; background: var(--bg); }
+.binlist li.on { border-color: var(--ink); background: var(--panel); box-shadow: inset 3px 0 0 var(--bin); }
+.binlist .num { font-family: var(--display); font-weight: 800; font-size: 1.05rem; text-align: center; }
+.binlist .what { font-family: var(--mono); font-size: .82rem; min-width: 0; }
+.binlist .what small { display: block; font-family: var(--body); color: var(--muted); font-size: .76rem; }
+.binlist .del { border: 0; background: transparent; color: var(--muted); font-size: 1.1rem; width: 28px; height: 28px; cursor: pointer; border-radius: 3px; }
+.binlist .del:hover { background: var(--stage); color: var(--warn); }
+.empty-note { font-size: .85rem; color: var(--muted); margin: 0; }
+.full-note { color: var(--warn); }
+
+.size-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stepper { display: grid; gap: 4px; }
+.stepper label { font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.stepper .ctl { display: grid; grid-template-columns: 34px 1fr 34px; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.stepper button { font: inherit; font-size: 1.1rem; border: 0; background: transparent; color: var(--ink); cursor: pointer; }
+.stepper button:hover { background: var(--stage); }
+.stepper.inline { grid-template-columns: 14px 1fr; gap: 6px; align-items: center; }
+.stepper.inline label { text-align: center; }
+.stepper output { text-align: center; font-family: var(--mono); font-weight: 600; padding: 6px 0; font-variant-numeric: tabular-nums; border-inline: 1px solid var(--line); }
+
+.field { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 10px; }
+.field label, .field .lab { font-size: .9rem; }
+.field .val { font-family: var(--mono); font-size: .8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.field input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--bin-deep); }
+#labelGrids { display: grid; gap: 8px; }
+.lgrid { display: grid; gap: 4px; }
+.lgrid-name { font-size: .8rem; color: var(--muted); }
+.lgrid .cells { display: grid; gap: 4px; }
+.lgrid .cell { width: 100%; min-width: 0; box-sizing: border-box; font: inherit; font-family: var(--mono); font-size: .88rem; text-transform: uppercase; text-align: center; padding: 6px 4px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); color: var(--ink); }
+.lgrid .cell.bad { border-color: #c25a00; }
+.field input[type=number] { width: 84px; font: inherit; font-family: var(--mono); font-size: .85rem; padding: 4px 6px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); color: var(--ink); }
+.nest { border-left: 2px solid var(--line); padding-left: 12px; display: grid; gap: 10px; }
+.pair { display: grid; grid-template-columns: 96px 1fr; gap: 8px 10px; align-items: center; }
+.row { display: grid; gap: 6px; }
+.row .lab, .pair .lab { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+details.more summary { cursor: pointer; list-style: none; font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); display: flex; gap: 8px; align-items: baseline; }
+details.more summary::-webkit-details-marker { display: none; }
+details.more summary::before { content: "▸"; font-family: var(--mono); }
+details.more[open] summary::before { content: "▾"; }
+details.more summary small { font-size: .78rem; text-transform: none; letter-spacing: 0; }
+details.more[open] { display: grid; gap: 10px; }
+.stage .lift { position: absolute; left: 10px; top: 10px; margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 5px 10px; font-size: .82rem; }
+.check { display: flex; gap: 8px; align-items: center; font-size: .88rem; margin-top: 10px; cursor: pointer; }
+.check input { accent-color: var(--bin-deep); }
+.sub { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 4px 0 -4px; }
+
+details.group summary { cursor: pointer; font-family: var(--display); font-weight: 600; font-size: .95rem; letter-spacing: .12em; text-transform: uppercase; list-style: none; display: flex; justify-content: space-between; }
+details.group summary::-webkit-details-marker { display: none; }
+details.group summary::after { content: "+"; font-family: var(--mono); }
+details.group[open] summary::after { content: "−"; }
+.adv { display: grid; gap: 10px; }
+
+.stage-col { position: sticky; top: env(safe-area-inset-top, 0px); display: grid; gap: 12px; min-width: 0; }
+.stage { position: relative; background: var(--stage); border: 1px solid var(--line); border-radius: 4px; aspect-ratio: 4 / 3; max-width: 100%; overflow: hidden; }
+.stage canvas { display: block; width: 100%; height: 100%; }
+.stage .tag { position: absolute; left: 10px; bottom: 8px; font-family: var(--mono); font-size: .72rem; color: var(--muted); pointer-events: none; }
+.stage .viewseg { position: absolute; right: 10px; top: 10px; background: var(--panel); }
+.stage .reset { position: absolute; right: 10px; bottom: 10px; font: inherit; font-size: .82rem; border: 1px solid var(--line); background: var(--panel); color: var(--ink); padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+.stage .reset:hover { border-color: var(--ink); }
+.stage .err { position: absolute; inset: 0; display: grid; place-items: center; padding: 20px; text-align: center; color: var(--muted); }
+
+.specs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+@media (max-width: 520px) { .specs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.spec { background: var(--panel); padding: 8px 10px; display: grid; gap: 2px; }
+.spec span { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.spec b { font-family: var(--mono); font-weight: 600; font-size: .9rem; font-variant-numeric: tabular-nums; }
+
+.summary { font-size: .88rem; display: flex; gap: 8px; align-items: center; }
+.summary::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.btn { font-family: var(--display); font-weight: 600; font-size: 1.05rem; letter-spacing: .08em; text-transform: uppercase; border: 2px solid var(--ink); background: var(--bin); color: #1C1C1A; padding: 10px 18px; border-radius: 3px; cursor: pointer; }
+.btn:hover { background: var(--bin-deep); }
+.btn.ghost { background: transparent; color: var(--ink); }
+.btn.ghost:hover { background: var(--stage); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn.small { font-size: .85rem; padding: 6px 10px; border-width: 1px; }
+.status { font-size: .85rem; color: var(--muted); min-height: 1.2em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.copybox { width: 100%; font-family: var(--mono); font-size: .75rem; min-height: 120px; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 3px; padding: 8px; }
+
+.floor .bin.bad { fill: url(#badhatch); stroke: var(--warn); stroke-width: 2; }
+.floor .bin.bad.on { stroke: #fff; }
+.floor .drawer { fill: var(--case); }
+.floor .front-label { font-family: var(--mono); fill: var(--muted); letter-spacing: .1em; }
+.binlist li.bad .what { color: var(--warn); }
+.dims { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.dim { display: grid; gap: 4px; }
+.dim label { font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.dim input, .field input.len { width: 100%; font: inherit; font-family: var(--mono); font-size: .9rem; padding: 6px 8px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); color: var(--ink); }
+.field input.len { width: 110px; }
+.dim input.bad, .field input.bad { border-color: var(--warn); }
+.unit-seg { max-width: 160px; }
+.cellsize { font-family: var(--mono); font-size: .82rem; color: var(--muted); }
+.cellsize b { color: var(--ink); font-weight: 600; }
+.stepper input { text-align: center; font: inherit; font-family: var(--mono); font-weight: 600; padding: 6px 0; border: 0; border-inline: 1px solid var(--line); background: transparent; color: var(--ink); width: 100%; min-width: 0; -moz-appearance: textfield; }
+.stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.warn-note { color: var(--warn); font-size: .85rem; margin: 0; }
+
+button:focus-visible, input:focus-visible, summary:focus-visible, li:focus-visible { outline: 2px solid var(--bin-deep); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style></head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>Drawer Organizer Builder</h1>
+      <p>Custom bins that fill a drawer, edge to edge.</p>
+    </div>
+    <div class="code-plate">
+      <div class="code" id="code">2x2</div>
+      <div class="code-meta" id="codeMeta"></div>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="rail">
+      <section class="group" aria-labelledby="h-drawer">
+        <h2 id="h-drawer">Drawer <small>inside measurements</small></h2>
+        <div class="seg unit-seg" role="group" aria-label="Units">
+          <button type="button" data-units="mm">mm</button>
+          <button type="button" data-units="in">inches</button>
+        </div>
+        <div class="dims">
+          <div class="dim"><label for="drawerW">Width <span class="u"></span></label><input type="text" inputmode="decimal" id="drawerW" autocomplete="off"></div>
+          <div class="dim"><label for="drawerD">Depth <span class="u"></span></label><input type="text" inputmode="decimal" id="drawerD" autocomplete="off"></div>
+          <div class="dim"><label for="drawerH">Height <span class="u"></span></label><input type="text" inputmode="decimal" id="drawerH" autocomplete="off"></div>
+          <div class="dim"><label for="drawerR">Corner radius <span class="u"></span></label><input type="text" inputmode="decimal" id="drawerR" autocomplete="off"></div>
+        </div>
+        <p class="map-note" id="unitHint">Width runs left to right as you face the drawer, depth front to back.</p>
+      </section>
+
+      <section class="group" aria-labelledby="h-grid">
+        <h2 id="h-grid">Grid <small id="cellSize" class="cellsize"></small></h2>
+        <div class="size-row">
+          <div class="stepper">
+            <label for="cols">Columns</label>
+            <div class="ctl"><button type="button" id="cols-minus" aria-label="Fewer columns">−</button><input type="number" id="cols" min="1" max="30" step="1"><button type="button" id="cols-plus" aria-label="More columns">+</button></div>
+          </div>
+          <div class="stepper">
+            <label for="rows">Rows</label>
+            <div class="ctl"><button type="button" id="rows-minus" aria-label="Fewer rows">−</button><input type="number" id="rows" min="1" max="30" step="1"><button type="button" id="rows-plus" aria-label="More rows">+</button></div>
+          </div>
+        </div>
+        <div class="toolbar"><button type="button" class="chip quiet" id="suggest">Suggest</button><span class="map-note" id="suggestNote"></span></div>
+      </section>
+
+      <section class="group" aria-labelledby="h-layout">
+        <h2 id="h-layout">Layout <small>drag empty cells to draw · drag a bin to move it</small></h2>
+        <svg class="floor" id="floor" role="img" aria-label="Drawer floor grid. Drag on empty cells to draw a bin. Drag a bin to move it."></svg>
+        <div class="toolbar">
+          <button type="button" class="chip quiet" id="autoFill">Auto-fill empty cells</button>
+          <button type="button" class="chip quiet" id="clearAll">Clear all</button>
+        </div>
+        <p class="warn-note" id="bedNote" hidden></p>
+        <ol class="binlist" id="binlist" aria-label="Bins"></ol>
+        <p class="empty-note" id="emptyNote" hidden>No bins yet. Drag across empty cells to draw one, or use <b>Auto-fill</b>.</p>
+      </section>
+
+      <section class="group" id="binGroup" aria-labelledby="h-bin">
+        <h2 id="h-bin">Selected bin <small id="binWhich"></small></h2>
+        <div class="size-row">
+          <div class="stepper">
+            <label for="w-out">Width · cells</label>
+            <div class="ctl"><button type="button" id="w-minus" aria-label="Fewer cells across">−</button><output id="w-out">1</output><button type="button" id="w-plus" aria-label="More cells across">+</button></div>
+          </div>
+          <div class="stepper">
+            <label for="d-out">Depth · cells</label>
+            <div class="ctl"><button type="button" id="d-minus" aria-label="Fewer cells deep">−</button><output id="d-out">1</output><button type="button" id="d-plus" aria-label="More cells deep">+</button></div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="binH">Height <span class="u"></span></label>
+          <input type="text" inputmode="decimal" class="len" id="binH" autocomplete="off">
+        </div>
+        <p class="map-note" id="binHNote"></p>
+
+        <div class="seg" role="group" aria-label="Stack" title="A stacked bin is a shorter bottom bin plus top trays that fill the bin's height">
+          <button type="button" id="stack-off" data-stack="off">Single bin</button>
+          <button type="button" id="stack-on" data-stack="on">Stacked</button>
+        </div>
+        <p class="map-note" id="stackNote" hidden></p>
+        <div id="stackBox" class="nest" hidden>
+          <div class="field">
+            <label for="lowerH">Bottom bin height</label><span class="val" id="lowerH-v"></span>
+            <input type="range" id="lowerH" step="0.5">
+          </div>
+          <div class="row">
+            <span class="lab">Top</span>
+            <div class="seg" role="group" aria-label="Top tray split">
+              <button type="button" data-split="1">1 tray</button>
+              <button type="button" data-split="w">2 across W</button>
+              <button type="button" data-split="d">2 across D</button>
+              <button type="button" data-split="4">4 trays</button>
+            </div>
+          </div>
+          <div class="row">
+            <span class="lab">Tray dividers</span>
+            <div class="size-row">
+            <div class="stepper inline"><label for="trayDivW-out">W</label><div class="ctl"><button type="button" id="trayDivW-minus" aria-label="Fewer tray sections across W">−</button><output id="trayDivW-out">1</output><button type="button" id="trayDivW-plus" aria-label="More tray sections across W">+</button></div></div>
+            <div class="stepper inline"><label for="trayDivD-out">D</label><div class="ctl"><button type="button" id="trayDivD-minus" aria-label="Fewer tray sections across D">−</button><output id="trayDivD-out">1</output><button type="button" id="trayDivD-plus" aria-label="More tray sections across D">+</button></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <span class="lab" id="divLabel">Dividers</span>
+          <div class="size-row">
+          <div class="stepper inline"><label for="divW-out">W</label><div class="ctl"><button type="button" id="divW-minus" aria-label="Fewer sections across W">−</button><output id="divW-out">1</output><button type="button" id="divW-plus" aria-label="More sections across W">+</button></div></div>
+          <div class="stepper inline"><label for="divD-out">D</label><div class="ctl"><button type="button" id="divD-minus" aria-label="Fewer sections across D">−</button><output id="divD-out">1</output><button type="button" id="divD-plus" aria-label="More sections across D">+</button></div></div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <button type="button" class="btn ghost small" id="applyAll">Use this bin's options on all bins</button>
+          <button type="button" class="btn ghost small" id="delSel">Delete bin</button>
+        </div>
+      </section>
+
+      <details class="group" id="advGroup">
+        <summary>Fit and print</summary>
+        <div class="adv">
+          <p class="map-note">All in millimetres.</p>
+          <div class="field"><label for="binClear">Clearance between bins, per side</label><input type="number" id="binClear" step="0.05"></div>
+          <div class="field"><label for="wallClear">Clearance to drawer walls, per side</label><input type="number" id="wallClear" step="0.05"></div>
+          <div class="field"><label for="wall">Wall</label><input type="number" id="wall" step="0.1"></div>
+          <div class="field"><label for="floorT">Floor</label><input type="number" id="floorT" step="0.1"></div>
+          <div class="field"><label for="cornerR">Bin corner radius</label><input type="number" id="cornerR" step="0.5"></div>
+          <div class="field"><label for="draft">Taper per side (°)</label><input type="number" id="draft" step="0.1"></div>
+          <div class="field"><label for="plugDepth">Stack plug depth</label><input type="number" id="plugDepth" step="0.5"></div>
+          <div class="field"><label for="plugClear">Stack plug clearance per side</label><input type="number" id="plugClear" step="0.05"></div>
+          <div class="field"><label for="bedX">Print bed X</label><input type="number" id="bedX" step="1"></div>
+          <div class="field"><label for="bedY">Print bed Y</label><input type="number" id="bedY" step="1"></div>
+          <button type="button" class="btn ghost small" id="resetAdv">Reset to defaults</button>
+        </div>
+      </details>
+    </div>
+
+    <div class="stage-col">
+      <div class="stage" id="stage">
+        <div class="seg viewseg" role="group" aria-label="3D view">
+          <button type="button" data-view="drawer">Whole drawer</button>
+          <button type="button" data-view="bin">Selected bin</button>
+        </div>
+        <span class="tag">drag to orbit · scroll to zoom · double-click to reset</span>
+        <button type="button" class="reset" id="resetView" title="Reset the camera">Reset view</button>
+        <label class="check lift" id="liftWrap" hidden><input type="checkbox" id="liftTrays"> Lift trays</label>
+      </div>
+      <div class="specs" id="specs"></div>
+      <div class="summary" id="summary"></div>
+      <div class="actions">
+        <button type="button" class="btn" id="dlAll">Download all bins</button>
+      </div>
+      <div class="status" role="status"><span id="status"></span><button type="button" class="chip quiet" id="undo" hidden>Undo</button></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js" integrity="sha384-wagZhIFgY4hD+7awjQjR4e2E294y6J2HSnd8eTNc15ZubTeQeVRZwhQJ+W6hnBsf" crossorigin="anonymous"></script>
+<script type="module" src="src/app.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "name": "drawer-organizer-builder",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Custom 3D-printable bins that fill a drawer",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "serve": "python3 -m http.server 8767 --bind 127.0.0.1",
+    "lint": "eslint .",
+    "check": "npm run lint && npm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0"
+  }
+}

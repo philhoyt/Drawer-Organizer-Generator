@@ -35,7 +35,7 @@ Same as the sibling apps, **except no OpenSCAD version**.
 - The user picks **columns × rows**. Cells stretch to fill: cell W = (drawer W − wall margins) ÷ columns, and the same for depth. There's never any leftover.
 - The app suggests counts that give cells near a target size (default about 50 mm), and the user can change them.
 - Show the resulting cell size in the current unit next to the counts.
-- Changing counts with bins already placed: keep the bins that still fit, and drop or clip the rest with a notice. (Exact behavior to settle during implementation.)
+- Changing counts with bins already placed: keep the bins that still fit, and drop or clip the rest with a notice. (Settled below.)
 
 ## Placing bins
 
@@ -95,9 +95,28 @@ No fit-test download in v1.
 
 Reuse from Storehouse wherever it fits (zip/STL writers, trig series, tray and rib geometry, the floor-map interaction), adapted from a fixed pitch to a per-drawer cell size.
 
-## Open details to settle while building
+## Settled while building (v1)
 
-1. What happens to placed bins when the grid counts change.
-2. Corner bins in a rounded drawer: round only the drawer-facing corner, or all four corners at the drawer radius.
-3. Limits: max columns/rows, min cell size (a cell has to hold two walls + clearance + a usable pocket), and min/max height.
-4. Whether auto-fill prefers square-ish bins or the longest strips that fit the bed.
+The four open details from the interview, and the choices made in v1:
+
+1. **Grid counts change with bins placed.** Every bin keeps its cell position and size. A bin that now runs past the right or back edge is cut back to the grid. A bin whose first cell is gone is removed. The status line says how many were cut back or removed, with an **Undo**. Nothing grows, so nothing can end up overlapping. Changing the drawer size or the clearances goes through the same rule when the counts follow the suggestion.
+2. **Corner bins in a rounded drawer.** Only the corner that touches the drawer corner is rounded, concentric with the drawer: radius = drawer radius − wall clearance. It only kicks in when that is bigger than the bin corner radius. A stacking tray that sits on that corner gets the same radius there. Rounded bins get their own STL, tagged with the radius and corner, e.g. `1x4-50x198x63.5-round12.5-FR` (FL, FR, BL, BR as you face the drawer).
+3. **Limits.**
+   - Columns and rows: 1 to 30.
+   - Smallest cell: 15 mm. That's two 1.6 mm walls, two clearances, and a pocket of about 11 mm. The count steppers stop there.
+   - Bin height: 10 mm up to the drawer height.
+   - Stacking needs a bin at least 30 mm tall, so the bottom bin and the tray each get at least 15 mm.
+   - Drawer: 30 to 1500 mm wide and deep, 10 to 300 mm tall, corner radius 0 to 50 mm.
+   - Bed: 50 to 1000 mm per side.
+4. **Auto-fill picks squarish bins.** Biggest area first, then the squarest of equal area, then wider before deeper. It walks the empty cells front row first, left to right. At each one it places the first size that fits the space and the bed. Squarer bins are stiffer, and long thin prints warp more.
+
+Other choices made in v1:
+
+- **Grid math.** Pitch = (drawer length − 2 × wall clearance + 2 × bin clearance) ÷ count. Every bin is (cells × pitch − 2 × bin clearance) at the rim. Neighbours are exactly 2 × bin clearance apart, and the outer bins sit exactly the wall clearance off the drawer walls. Bins with the same cell size have the same footprint anywhere in the drawer, so they share an STL. The panel shows the pitch as the cell size.
+- **Suggested counts** follow the drawer until you change a count by hand. After that, a **Suggest** button puts them back.
+- **Units.** The mm/inch toggle covers the drawer measurements, the bin height, and the stacking split. Fit and print settings and the bed size stay in mm, since slicer and printer specs use mm.
+- **Stored precision.** Drawer measurements are kept to 0.01 mm, bin heights to 0.1 mm, so typed inches convert cleanly (`15 3/4` → 400.05 mm).
+- **File names.** The footprint is rounded to whole mm. The height is to 0.1 mm, so two different heights never share a name. The zip is `drawer-<W>x<D>x<H>-<n>-bins.zip`.
+- **Defaults.** First visit: a 400 × 300 × 60 mm drawer with square corners on an 8 × 6 grid, plus two starter bins.
+- **Dividers** run full height, or stop 1 mm under the tray plug on a stacked bin. There's no divider-height setting in v1.
+- **Drawing over the bed limit.** A drag stops growing at the last size that fits the bed, and the status line says why. The W/D steppers refuse the same way.

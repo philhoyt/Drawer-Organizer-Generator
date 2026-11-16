@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createState, restoreState, saveable, makeBin, parseLength, formatLength, cleanBin, layoutFile, readLayout, cleanLayouts, putLayout } from "../src/state.js";
+import { createState, restoreState, saveable, makeBin, parseLength, formatLength, cleanBin, layoutFile, readLayout, cleanLayouts, putLayout, BED_PRESETS, BEDS, bedPresetOf, LIMITS } from "../src/state.js";
 
 test("lengths parse in mm and inches, with fractions and unit suffixes", () => {
   assert.equal(parseLength("365", "mm"), 365);
@@ -96,4 +96,18 @@ test("saved layouts: same name replaces, newest first, junk dropped", () => {
   const cleaned = cleanLayouts([{ name: "Old", savedAt: 5, data: d }, { name: "", data: d }, { name: "x", data: {} }, null, { name: "New", savedAt: 9, data: d }]);
   assert.deepEqual(cleaned.map(l => l.name), ["New", "Old"]);
   assert.deepEqual(cleanLayouts("junk"), []);
+});
+
+test("bed presets: unique ids, sizes within the bed limits, and remembered only while the size matches", () => {
+  const ids = BED_PRESETS.flatMap(g => g.models.map(m => m[0]));
+  assert.equal(new Set(ids).size, ids.length);
+  Object.values(BEDS).forEach(p => { assert.ok(p.x >= LIMITS.bedX[0] && p.x <= LIMITS.bedX[1] && p.y >= LIMITS.bedY[0] && p.y <= LIMITS.bedY[1], p.id); });
+  assert.equal(BEDS["bambu-a1"].name, "Bambu Lab A1");
+  const S = createState();
+  assert.equal(bedPresetOf(S), null); // 220 x 220 with no preset picked: custom
+  Object.assign(S, { bedPreset: "prusa-mk4", bedX: 250, bedY: 210 });
+  assert.equal(bedPresetOf(S).name, "Prusa MK4S / MK4 / MK3S+");
+  S.bedY = 200; assert.equal(bedPresetOf(S), null);
+  const T = createState(); restoreState(T, { bedPreset: "prusa-mk4", bedX: 250, bedY: 210 }); assert.equal(bedPresetOf(T).id, "prusa-mk4");
+  const U = createState(); restoreState(U, { bedPreset: "made-up" }); assert.equal(U.bedPreset, "");
 });

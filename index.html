@@ -185,6 +185,7 @@ details.group[open] summary::after { content: "−"; }
 .dim label { font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
 .dim input, .field input.len { width: 100%; font: inherit; font-family: var(--mono); font-size: .9rem; padding: 6px 8px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); color: var(--ink); }
 .field input.len { width: 110px; }
+.field select { max-width: 230px; font: inherit; font-size: .88rem; padding: 5px 6px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); color: var(--ink); }
 .name-row { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
 .name-row input { min-width: 0; font: inherit; font-size: .9rem; padding: 6px 8px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); color: var(--ink); }
 .layoutlist li { grid-template-columns: 1fr auto; }
@@ -228,6 +229,8 @@ button:focus-visible, input:focus-visible, summary:focus-visible, li:focus-visib
           <div class="dim"><label for="drawerR">Corner radius <span class="u"></span></label><input type="text" inputmode="decimal" id="drawerR" autocomplete="off"></div>
         </div>
         <p class="map-note" id="unitHint">Width runs left to right as you face the drawer, depth front to back.</p>
+        <div class="field"><label for="bedPreset">Printer</label><select id="bedPreset"></select></div>
+        <p class="map-note" id="bedHint"></p>
       </section>
 
       <section class="group" aria-labelledby="h-grid">

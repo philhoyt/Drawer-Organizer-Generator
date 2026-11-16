@@ -2,7 +2,7 @@
 import * as layout from "./layout.js";
 import { pitch, footprint, fitsBed, oversized, binBox, maxCount, suggestCount } from "./layout.js";
 import { FIT, BIN_OPTS, STEP_LIMITS, DRAWER_KEYS, FIT_KEYS, LIMITS, MIN_BIN_H, MIN_STACK_PART, clamp, parseLength, formatLength, unitName,
-         makeBin, createState, restoreState, saveable, cleanName, layoutFile, readLayout, cleanLayouts, putLayout } from "./state.js";
+         makeBin, createState, restoreState, saveable, cleanName, layoutFile, readLayout, cleanLayouts, putLayout, BED_PRESETS, BEDS, bedPresetOf } from "./state.js";
 import { createGeometry, splitOf } from "./geometry.js";
 import { createExport, zip } from "./export.js";
 
@@ -37,7 +37,7 @@ import { createExport, zip } from "./export.js";
   // ---------------------------------------------------------------- history
   // Undo and redo cover the whole layout: bins, grid, drawer, and fit settings. update() records a step whenever any of
   // them changed since the last step (never mid-drag), so every control gets undo without its own bookkeeping.
-  var HIST_KEYS = ["cols", "rows", "autoGrid"].concat(DRAWER_KEYS, FIT_KEYS), past = [], future = [], cur = null, MAX_HIST = 100;
+  var HIST_KEYS = ["cols", "rows", "autoGrid", "bedPreset"].concat(DRAWER_KEYS, FIT_KEYS), past = [], future = [], cur = null, MAX_HIST = 100;
   function take() { var s = { bins: S.bins.map(function (b) { return Object.assign({}, b); }), selId: S.selId }; HIST_KEYS.forEach(function (k) { s[k] = S[k]; }); return s; }
   function keyOf(s) { var o = { bins: s.bins }; HIST_KEYS.forEach(function (k) { o[k] = s[k]; }); return JSON.stringify(o); }
   function record() {
@@ -177,7 +177,7 @@ import { createExport, zip } from "./export.js";
       var w = c1 - c0 + 1, d = r1 - r0 + 1;
       if (b.c === c0 && b.r === r0 && b.w === w && b.d === d) return;
       if (!fitsBed(S, w, d)) {
-        if (!warnedBed) { warnedBed = true; var f = footprint(S, w, d); say("A " + w + "x" + d + " bin (" + num(f.x) + " × " + num(f.y) + " " + unitName(S.units) + ") won't fit the " + S.bedX + " × " + S.bedY + " mm bed."); }
+        if (!warnedBed) { warnedBed = true; var f = footprint(S, w, d); say("A " + w + "x" + d + " bin (" + num(f.x) + " × " + num(f.y) + " " + unitName(S.units) + ") won't fit " + bedName() + "."); }
         return;
       }
       if (canPlace(c0, r0, w, d, b.id)) { b.c = c0; b.r = r0; b.w = w; b.d = d; update(false); }
@@ -381,7 +381,7 @@ import { createExport, zip } from "./export.js";
   // Merge the selected bins into one, if they fill a rectangle. It takes the options of the bin selected first.
   function mergeSel() {
     var list = selection(), R = layout.mergeRect(list); if (!R) return;
-    if (!fitsBed(S, R.w, R.d)) { var f = footprint(S, R.w, R.d); say("Merged, they'd be " + num(f.x) + " × " + num(f.y) + " " + unitName(S.units) + ": too big for the " + S.bedX + " × " + S.bedY + " mm bed."); return; }
+    if (!fitsBed(S, R.w, R.d)) { var f = footprint(S, R.w, R.d); say("Merged, they'd be " + num(f.x) + " × " + num(f.y) + " " + unitName(S.units) + ": too big for " + bedName() + "."); return; }
     var keep = list[0], rest = ids(list.slice(1));
     S.bins = S.bins.filter(function (b) { return rest.indexOf(b.id) < 0; });
     Object.assign(keep, R); picked = [];
@@ -397,7 +397,21 @@ import { createExport, zip } from "./export.js";
     $("codeMeta").innerHTML = b ? "<span>bin <b>" + idx(b) + "</b> of " + S.bins.length + " · top <b>" + num(D.bx) + " × " + num(D.by) + "</b> " + unitName(S.units) + "</span><span>" +
       (stacked(b) ? "stacked <b>" + num(D.h) + " + " + num(trayH(b) - S.plugDepth) + "</b> " : "<b>" + num(binH(b)) + "</b> ") + unitName(S.units) + " tall</span>" : "<span>Draw a bin on the floor grid.</span>";
   }
+  // "the Prusa MK4S / MK4 / MK3S+ bed (250 × 210 mm)", or "the 220 × 220 mm bed" for a custom size
+  function bedName() { var p = bedPresetOf(S); return p ? "the " + p.name + " bed (" + S.bedX + " × " + S.bedY + " mm)" : "the " + S.bedX + " × " + S.bedY + " mm bed"; }
+  (function fillBedPresets() {
+    var box = $("bedPreset"), o = document.createElement("option");
+    o.value = ""; o.textContent = "Custom size"; box.appendChild(o);
+    BED_PRESETS.forEach(function (g) {
+      var og = document.createElement("optgroup"); og.label = g.brand;
+      g.models.forEach(function (m) { var op = document.createElement("option"); op.value = m[0]; op.textContent = g.brand + " " + m[1] + " · " + m[2] + " × " + m[3]; og.appendChild(op); });
+      box.appendChild(og);
+    });
+  })();
   function updateDrawer() {
+    var bp = bedPresetOf(S);
+    $("bedPreset").value = bp ? bp.id : "";
+    $("bedHint").textContent = "Bed " + S.bedX + " × " + S.bedY + " mm" + (bp ? "" : ", set under Fit and print") + ". Bins bigger than the bed are flagged.";
     setPressed("units", S.units);
     document.querySelectorAll(".u").forEach(function (s) { s.textContent = "(" + unitName(S.units) + ")"; });
     DRAWER_KEYS.forEach(function (k) { setIfIdle(k, num(S[k])); });
@@ -456,7 +470,7 @@ import { createExport, zip } from "./export.js";
     if (big.length) {
       var nums = big.map(idx);
       $("bedNote").textContent = (nums.length > 1 ? "Bins " + nums.slice(0, -1).join(", ") + " and " + nums[nums.length - 1] + " are" : "Bin " + nums[0] + " is") +
-        " bigger than the " + S.bedX + " × " + S.bedY + " mm bed. Make " + (nums.length > 1 ? "them" : "it") + " smaller, or change the bed size under Fit and print, to download.";
+        " bigger than " + bedName() + ". Make " + (nums.length > 1 ? "them" : "it") + " smaller, or pick another printer, to download.";
     }
     $("dlAll").disabled = !S.bins.length || big.length > 0;
     $("autoFill").disabled = used >= total;
@@ -531,7 +545,7 @@ import { createExport, zip } from "./export.js";
     var b = sel(); if (!b) return;
     var w = b.w + dw, d = b.d + dd;
     if (w < 1 || d < 1) return;
-    if (!fitsBed(S, w, d)) { var f = footprint(S, w, d); say("A " + w + "x" + d + " bin (" + num(f.x) + " × " + num(f.y) + " " + unitName(S.units) + ") won't fit the " + S.bedX + " × " + S.bedY + " mm bed."); return; }
+    if (!fitsBed(S, w, d)) { var f = footprint(S, w, d); say("A " + w + "x" + d + " bin (" + num(f.x) + " × " + num(f.y) + " " + unitName(S.units) + ") won't fit " + bedName() + "."); return; }
     if (canPlace(b.c, b.r, w, d, b.id)) { b.w = w; b.d = d; say(""); update(); return; }
     var spot = layout.findSpot(S, S.bins, w, d, b.id);
     if (spot) { b.c = spot.c; b.r = spot.r; b.w = w; b.d = d; say("Moved bin " + idx(b) + " to fit " + w + "x" + d + "."); update(); }
@@ -583,6 +597,14 @@ import { createExport, zip } from "./export.js";
       if (isFinite(v)) S[k] = clamp(v, LIMITS[k]);
       fixGrid(); update();
     });
+  });
+  $("bedPreset").addEventListener("change", function () {
+    var p = BEDS[$("bedPreset").value];
+    if (!p) { S.bedPreset = ""; $("advGroup").open = true; say("Set the bed size under Fit and print."); update(); return; }
+    S.bedPreset = p.id; S.bedX = p.x; S.bedY = p.y;
+    var big = oversized(S, S.bins).length;
+    say("Bed set to " + p.name + ", " + p.x + " × " + p.y + " mm." + (big ? " " + big + " bin" + (big > 1 ? "s are" : " is") + " now too big for it." : ""));
+    update();
   });
   $("resetAdv").addEventListener("click", function () { Object.assign(S, FIT); fixGrid(); say("Fit and print settings are back to their defaults."); update(); });
   $("applyAll").addEventListener("click", function () {

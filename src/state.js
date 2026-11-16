@@ -18,6 +18,26 @@ var LIMITS = { drawerW: [30, 1500], drawerD: [30, 1500], drawerH: [MIN_BIN_H, 30
                binClear: [0, 2], wallClear: [0, 5], wall: [0.8, 4], floorT: [0.8, 4], cornerR: [0.5, 10], draft: [0, 4],
                plugDepth: [2, 10], plugClear: [0, 1.5], scoopR: [4, 30], bedX: [50, 1000], bedY: [50, 1000] };
 
+// Printable area (X x Y, mm) of common printers, for the bed preset picker. Single-nozzle area where it differs.
+var BED_PRESETS = [
+  { brand: "Bambu Lab", models: [["bambu-a1mini", "A1 mini", 180, 180], ["bambu-a1", "A1", 256, 256], ["bambu-p1", "P1S / P1P / X1 series", 256, 256],
+    ["bambu-h2d", "H2D (one nozzle)", 325, 320], ["bambu-h2s", "H2S", 340, 320]] },
+  { brand: "Prusa", models: [["prusa-mini", "MINI+", 180, 180], ["prusa-mk4", "MK4S / MK4 / MK3S+", 250, 210], ["prusa-core1", "CORE One", 250, 220],
+    ["prusa-core1l", "CORE One L", 300, 300], ["prusa-xl", "XL", 360, 360]] },
+  { brand: "Creality", models: [["creality-ender3", "Ender-3 series", 220, 220], ["creality-k1", "K1 / K1C", 220, 220], ["creality-k1max", "K1 Max", 300, 300],
+    ["creality-k2", "K2", 260, 260], ["creality-k2pro", "K2 Pro", 300, 300], ["creality-k2plus", "K2 Plus", 350, 350]] },
+  { brand: "Elegoo", models: [["elegoo-n4", "Neptune 4 / 4 Pro", 225, 225], ["elegoo-n4plus", "Neptune 4 Plus", 320, 320], ["elegoo-n4max", "Neptune 4 Max", 420, 420],
+    ["elegoo-cc", "Centauri Carbon", 256, 256]] },
+  { brand: "Anycubic", models: [["anycubic-k2neo", "Kobra 2 Neo", 220, 220], ["anycubic-k3", "Kobra 3", 250, 250], ["anycubic-s1", "Kobra S1", 250, 250]] },
+  { brand: "Qidi", models: [["qidi-q1pro", "Q1 Pro", 245, 245], ["qidi-xplus3", "X-Plus 3", 280, 280], ["qidi-plus4", "Plus4", 305, 305]] },
+  { brand: "Sovol", models: [["sovol-sv06", "SV06", 220, 220], ["sovol-sv06plus", "SV06 Plus", 300, 300]] },
+  { brand: "Voron", models: [["voron-250", "2.4 / Trident 250", 250, 250], ["voron-300", "2.4 / Trident 300", 300, 300], ["voron-350", "2.4 / Trident 350", 350, 350]] }
+];
+var BEDS = {}; // id -> { id, name, x, y }
+BED_PRESETS.forEach(function (g) { g.models.forEach(function (m) { BEDS[m[0]] = { id: m[0], name: g.brand + " " + m[1], x: m[2], y: m[3] }; }); });
+// The preset a bed size came from, if it still matches; otherwise null (a custom size).
+function bedPresetOf(S) { var p = BEDS[S.bedPreset]; return p && p.x === S.bedX && p.y === S.bedY ? p : null; }
+
 function isNum(v) { return typeof v === "number" && isFinite(v); }
 function isInt(v, lo, hi) { return isNum(v) && v === Math.floor(v) && v >= lo && v <= hi; }
 function clamp(v, lim) { return Math.min(lim[1], Math.max(lim[0], v)); }
@@ -52,7 +72,7 @@ function unitName(unit) { return unit === "in" ? "in" : "mm"; }
 // ---------------------------------------------------------------- state
 function makeBin(id, c, r, w, d, opts) { return Object.assign({ id: id, c: c, r: r, w: w, d: d }, BIN_OPTS, opts || {}); }
 function createState() {
-  var S = Object.assign({ units: "mm", cols: 1, rows: 1, autoGrid: true, view: "drawer", liftTrays: false, bins: [], selId: null }, DRAWER, FIT);
+  var S = Object.assign({ units: "mm", cols: 1, rows: 1, autoGrid: true, view: "drawer", liftTrays: false, bedPreset: "", bins: [], selId: null }, DRAWER, FIT);
   S.cols = suggestCount(S, "x"); S.rows = suggestCount(S, "y");
   return S;
 }
@@ -82,6 +102,7 @@ function restoreState(S, saved) {
   }
   if (saved.view === "drawer" || saved.view === "bin") S.view = saved.view;
   S.liftTrays = !!saved.liftTrays;
+  S.bedPreset = typeof saved.bedPreset === "string" && BEDS[saved.bedPreset] ? saved.bedPreset : "";
   (Array.isArray(saved.bins) ? saved.bins : []).forEach(function (raw) {
     var b = cleanBin(raw);
     if (b && canPlace(S, S.bins, b.c, b.r, b.w, b.d) && !S.bins.some(function (o) { return o.id === b.id; })) { S.bins.push(b); nextId = Math.max(nextId, b.id + 1); }
@@ -91,7 +112,7 @@ function restoreState(S, saved) {
 }
 // What gets saved: the settings and bins, nothing derived.
 function saveable(S) {
-  var out = { units: S.units, cols: S.cols, rows: S.rows, autoGrid: S.autoGrid, view: S.view, liftTrays: S.liftTrays, selId: S.selId, bins: S.bins };
+  var out = { units: S.units, cols: S.cols, rows: S.rows, autoGrid: S.autoGrid, view: S.view, liftTrays: S.liftTrays, bedPreset: S.bedPreset, selId: S.selId, bins: S.bins };
   DRAWER_KEYS.concat(FIT_KEYS).forEach(function (k) { out[k] = S[k]; });
   return out;
 }
@@ -121,6 +142,7 @@ function putLayout(list, name, data, now) {
   return { list: out.slice(0, MAX_LAYOUTS), replaced: had };
 }
 
+export { BED_PRESETS, BEDS, bedPresetOf };
 export { LAYOUT_FORMAT, MAX_LAYOUTS, cleanName, layoutFile, readLayout, cleanLayouts, putLayout };
 export { MM_PER_IN, DRAWER, FIT, BIN_OPTS, STEP_LIMITS, BIN_ENUMS, TRAY_GAP, DIVIDER_T, MIN_BIN_H, MIN_STACK_PART, TARGET_CELL, MIN_CELL, MAX_COUNT,
          DRAWER_KEYS, FIT_KEYS, LIMITS, clamp, parseLength, formatLength, unitName, makeBin, createState, cleanBin, restoreState, saveable };

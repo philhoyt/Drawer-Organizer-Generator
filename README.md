@@ -42,7 +42,7 @@ If you change the counts with bins already placed, every bin keeps its cell posi
 
 ## Bed size
 
-Set your printer's bed under **Fit and print** (default 220 × 220 mm). A bin fits if its footprint fits either way round, since you can turn it on the bed. You can't draw a bin bigger than the bed. If you shrink the bed or the grid makes a bin too big, it's flagged on the map and **Download all bins** stays off until you fix it.
+Pick your printer under **Drawer**. The list has common Bambu Lab, Prusa, Creality, Elegoo, Anycubic, Qidi, Sovol and Voron models. For anything else, choose **Custom size** and type the bed's X and Y under **Fit and print** (default 220 × 220 mm). The presets are the printable area from each maker's specs (the single-nozzle area for the H2D). Leave room for a brim if you use one. A bin fits if its footprint fits either way round, since you can turn it on the bed. You can't draw a bin bigger than the bed. If you shrink the bed or the grid makes a bin too big, it's flagged on the map and **Download all bins** stays off until you fix it.
 
 ## Rounded drawers
 

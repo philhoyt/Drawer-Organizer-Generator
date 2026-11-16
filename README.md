@@ -99,7 +99,7 @@ npm run check
 - every bin, divided bin, scooped bin, stacked base, and tray is checked for a closed mesh, and its enclosed volume is compared with the volume worked out from the spec
 - golden tests hash the exported zips for a set of layouts and compare them with values recorded from the real page, so any change to the geometry or the export format shows up as a failure. Re-record them only when the change is intended.
 
-The mesh code uses its own trig series instead of `Math.sin` and friends so that every JavaScript engine produces the same bytes. GitHub Actions runs the same check on every push and pull request, and publishes the site to GitHub Pages only when it passes on `main`.
+The mesh code uses its own trig series instead of `Math.sin` and friends so that every JavaScript engine produces the same bytes. GitHub Actions runs the same check on every push and pull request, and publishes the site to GitHub Pages only when it passes on `main`. The deploy step stamps every script URL with the commit (`scripts/stamp.js`), so a browser never runs a new page with modules cached from an older deploy.
 
 ## Files
 
@@ -111,5 +111,6 @@ The mesh code uses its own trig series instead of `Math.sin` and friends so that
 | `src/geometry.js` | Meshes for tapered bins, dividers, finger scoops, stacking trays, and ribs. |
 | `src/export.js` | File names, grouping, the STL and zip writers. |
 | `src/state.js` | Defaults, limits, unit parsing, and the checked restore of saved state. |
+| `scripts/stamp.js` | Deploy step: adds `?v=<commit>` to the page's module script and every import in the published copy. |
 | `test/` | Node tests. Golden checksums of exports, mesh checks, and unit tests. |
 | `SCOPE.md` | What v1 covers, and the choices made while building it. |

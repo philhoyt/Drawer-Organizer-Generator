@@ -15,7 +15,7 @@ export default [
     }
   },
   {
-    files: ["test/**/*.js", "eslint.config.js"],
+    files: ["test/**/*.js", "scripts/**/*.js", "eslint.config.js"],
     languageOptions: { ecmaVersion: 2022, sourceType: "module", globals: { ...globals.node } },
     rules: { "no-unused-vars": ["error", { args: "none" }] }
   },

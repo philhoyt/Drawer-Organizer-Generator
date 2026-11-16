@@ -185,6 +185,9 @@ details.group[open] summary::after { content: "−"; }
 .dim label { font-size: .78rem; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
 .dim input, .field input.len { width: 100%; font: inherit; font-family: var(--mono); font-size: .9rem; padding: 6px 8px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); color: var(--ink); }
 .field input.len { width: 110px; }
+.name-row { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+.name-row input { min-width: 0; font: inherit; font-size: .9rem; padding: 6px 8px; border: 1px solid var(--line); border-radius: 3px; background: var(--bg); color: var(--ink); }
+.layoutlist li { grid-template-columns: 1fr auto; }
 .dim input.bad, .field input.bad { border-color: var(--warn); }
 .unit-seg { max-width: 160px; }
 .cellsize { font-family: var(--mono); font-size: .82rem; color: var(--muted); }
@@ -336,6 +339,24 @@ button:focus-visible, input:focus-visible, summary:focus-visible, li:focus-visib
           <button type="button" class="btn ghost small" id="delSel">Delete bin</button>
         </div>
       </section>
+
+      <details class="group" id="layoutsGroup">
+        <summary>Saved layouts</summary>
+        <div class="adv">
+          <form class="name-row" id="saveForm">
+            <input type="text" id="layoutName" maxlength="60" autocomplete="off" aria-label="Layout name">
+            <button type="submit" class="btn ghost small" id="saveLayout">Save</button>
+          </form>
+          <ol class="binlist layoutlist" id="layoutList" aria-label="Saved layouts"></ol>
+          <p class="map-note" id="layoutsEmpty">Nothing saved yet. Name this layout and press <b>Save</b> to keep a copy you can come back to.</p>
+          <div class="toolbar">
+            <button type="button" class="chip quiet" id="exportLayout">Export file</button>
+            <button type="button" class="chip quiet" id="importLayout">Import file</button>
+            <input type="file" id="importFile" accept=".json,application/json" hidden>
+          </div>
+          <p class="map-note">Saved layouts stay in this browser. Export a file to back one up or open it on another computer. Loading a layout replaces the current one; <b>Undo</b> brings it back.</p>
+        </div>
+      </details>
 
       <details class="group" id="advGroup">
         <summary>Fit and print</summary>

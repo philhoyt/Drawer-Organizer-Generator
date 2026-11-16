@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createState, restoreState, saveable, makeBin, parseLength, formatLength, cleanBin } from "../src/state.js";
+import { createState, restoreState, saveable, makeBin, parseLength, formatLength, cleanBin, layoutFile, readLayout, cleanLayouts, putLayout } from "../src/state.js";
 
 test("lengths parse in mm and inches, with fractions and unit suffixes", () => {
   assert.equal(parseLength("365", "mm"), 365);
@@ -71,4 +71,29 @@ test("cleanBin rejects junk and fills missing options", () => {
   assert.equal(cleanBin({ id: 1, c: 0, r: 0, w: 31, d: 1 }), null);
   assert.deepEqual(cleanBin({ id: 2, c: 1, r: 2, w: 1, d: 1 }), { id: 2, c: 1, r: 2, w: 1, d: 1, h: 0, divW: 1, divD: 1, stack: false, lowerH: 0, split: "1", trayDivW: 1, trayDivD: 1, scoop: false });
   assert.equal(cleanBin({ id: 2, c: 1, r: 2, w: 1, d: 1, scoop: "yes" }).scoop, true);
+});
+
+test("a layout file round-trips, and anything else is refused", () => {
+  const S = createState();
+  S.drawerW = 455; S.drawerR = 10; S.autoGrid = false; S.cols = 7; S.rows = 5;
+  S.bins = [makeBin(4, 0, 0, 2, 2, { scoop: true, stack: true, lowerH: 22 }), makeBin(9, 3, 1, 1, 3, { divD: 3 })]; S.selId = 9;
+  const file = JSON.parse(JSON.stringify(layoutFile(S, "  Kitchen   left ")));
+  assert.equal(file.name, "Kitchen left"); assert.equal(file.format, "drawer-organizer-layout");
+  const got = readLayout(file);
+  assert.deepEqual(saveable(got.S), saveable(S)); assert.equal(got.nextId, 10); assert.equal(got.dropped, 0);
+  [null, "x", {}, { format: "something-else", bins: [] }, saveable(S)].forEach(d => assert.equal(readLayout(d), null));
+  // bins that no longer fit are dropped and counted
+  const bad = Object.assign({}, file, { bins: file.bins.concat([{ id: 20, c: 0, r: 0, w: 1, d: 1 }, "junk"]) });
+  assert.equal(readLayout(bad).dropped, 2);
+});
+
+test("saved layouts: same name replaces, newest first, junk dropped", () => {
+  const d = layoutFile(createState(), "a");
+  let r = putLayout([], "Desk", d, 1); r = putLayout(r.list, "Tools", d, 2);
+  assert.equal(r.replaced, false);
+  r = putLayout(r.list, " desk ", d, 3);
+  assert.equal(r.replaced, true); assert.deepEqual(r.list.map(l => l.name), ["desk", "Tools"]);
+  const cleaned = cleanLayouts([{ name: "Old", savedAt: 5, data: d }, { name: "", data: d }, { name: "x", data: {} }, null, { name: "New", savedAt: 9, data: d }]);
+  assert.deepEqual(cleaned.map(l => l.name), ["New", "Old"]);
+  assert.deepEqual(cleanLayouts("junk"), []);
 });

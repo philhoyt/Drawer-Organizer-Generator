@@ -2,7 +2,7 @@
 import * as layout from "./layout.js";
 import { pitch, footprint, fitsBed, oversized, binBox, maxCount, suggestCount } from "./layout.js";
 import { FIT, BIN_OPTS, STEP_LIMITS, DRAWER_KEYS, FIT_KEYS, LIMITS, MIN_BIN_H, MIN_STACK_PART, clamp, parseLength, formatLength, unitName,
-         makeBin, createState, restoreState, saveable } from "./state.js";
+         makeBin, createState, restoreState, saveable, cleanName, layoutFile, readLayout, cleanLayouts, putLayout } from "./state.js";
 import { createGeometry, splitOf } from "./geometry.js";
 import { createExport, zip } from "./export.js";
 
@@ -479,6 +479,7 @@ import { createExport, zip } from "./export.js";
     if (fullRedraw !== false) drawList();
     show3D();
     updateHistory();
+    $("layoutName").placeholder = defaultName();
     persist();
   }
 
@@ -606,6 +607,80 @@ import { createExport, zip } from "./export.js";
     }
   });
 
+  // ================================================================ saved layouts
+  var LAYOUTS_KEY = "dob-layouts-v1", layouts = [];
+  try { layouts = cleanLayouts(JSON.parse(localStorage.getItem(LAYOUTS_KEY) || "[]")); } catch (e) { /* no usable storage: start empty */ }
+  function storeLayouts() {
+    try { localStorage.setItem(LAYOUTS_KEY, JSON.stringify(layouts)); return true; }
+    catch (e) { say("Couldn't save in this browser (storage is full or blocked). Export a file instead."); return false; }
+  }
+  function defaultName() { return num(S.drawerW) + " × " + num(S.drawerD) + " × " + num(S.drawerH) + " " + unitName(S.units) + " drawer"; }
+  function layoutMeta(d) {
+    var n = Array.isArray(d.bins) ? d.bins.length : 0;
+    return num(d.drawerW) + " × " + num(d.drawerD) + " × " + num(d.drawerH) + " " + unitName(S.units) + " · " + n + " bin" + (n === 1 ? "" : "s");
+  }
+  function when(t) { if (!t) return ""; var d = new Date(t); return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }); }
+  function drawLayouts() {
+    var ol = $("layoutList"); ol.innerHTML = "";
+    layouts.forEach(function (l, i) {
+      var li = document.createElement("li"), what = document.createElement("span"), name = document.createElement("b"), meta = document.createElement("small");
+      li.tabIndex = 0; li.title = "Load this layout";
+      what.className = "what"; name.textContent = l.name; meta.textContent = layoutMeta(l.data) + (l.savedAt ? " · " + when(l.savedAt) : "");
+      what.append(name, meta);
+      var del = document.createElement("button"); del.type = "button"; del.className = "del"; del.textContent = "×"; del.setAttribute("aria-label", "Delete saved layout " + l.name);
+      li.append(what, del);
+      li.addEventListener("click", function (e) { if (e.target === del) deleteLayout(i); else loadLayout(l.data, "Loaded “" + l.name + "”."); });
+      li.addEventListener("keydown", function (e) { if (e.target !== del && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); loadLayout(l.data, "Loaded “" + l.name + "”."); } });
+      ol.appendChild(li);
+    });
+    $("layoutsEmpty").hidden = layouts.length > 0;
+    $("layoutName").placeholder = defaultName();
+  }
+  // Replace the current layout with a saved one. Goes through the same checks as a restored session, and into undo.
+  function loadLayout(data, msg) {
+    var got = readLayout(data);
+    if (!got) { say("That isn't a drawer layout."); return false; }
+    var T = got.S;
+    Object.keys(saveable(T)).forEach(function (k) { S[k] = T[k]; });
+    nextId = Math.max(nextId, got.nextId); picked = [];
+    sayUndo(msg + (got.dropped ? " " + (got.dropped > 1 ? got.dropped + " bins couldn't be placed and were" : "1 bin couldn't be placed and was") + " left out." : ""));
+    update();
+    return got;
+  }
+  $("saveForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var name = cleanName($("layoutName").value) || defaultName();
+    var r = putLayout(layouts, name, layoutFile(S, name), Date.now()), before = layouts;
+    layouts = r.list;
+    if (!storeLayouts()) { layouts = before; return; }
+    $("layoutName").value = ""; drawLayouts();
+    say((r.replaced ? "Updated" : "Saved") + " “" + name + "”.");
+  });
+  function deleteLayout(i) {
+    var l = layouts[i]; if (!l || !window.confirm("Delete the saved layout “" + l.name + "”? This can't be undone.")) return;
+    layouts.splice(i, 1); storeLayouts(); drawLayouts(); say("Deleted the saved layout “" + l.name + "”.");
+  }
+  function slug(t) { return t.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40); }
+  $("exportLayout").addEventListener("click", function () {
+    var name = cleanName($("layoutName").value) || defaultName(), file = "drawer-layout-" + (slug(name) || "untitled") + ".json";
+    save(file, new Blob([JSON.stringify(layoutFile(S, name), null, 1)], { type: "application/json" }), "Saved " + file + ".");
+  });
+  $("importLayout").addEventListener("click", function () { $("importFile").value = ""; $("importFile").click(); });
+  $("importFile").addEventListener("change", function () {
+    var f = $("importFile").files[0]; if (!f) return;
+    if (f.size > 2e6) { say("That file is too big to be a drawer layout."); return; }
+    f.text().then(function (text) {
+      var data; try { data = JSON.parse(text); } catch (e) { say("Couldn't read " + f.name + ": it isn't a layout file."); return; }
+      var got = loadLayout(data, "Imported " + f.name + ".");
+      if (!got) return;
+      // keep a copy in the saved list under its own name
+      var name = got.name || cleanName(f.name.replace(/\.json$/i, "")) || defaultName(), before = layouts;
+      layouts = putLayout(layouts, name, layoutFile(S, name), Date.now()).list;
+      if (!storeLayouts()) layouts = before;
+      drawLayouts();
+    }, function () { say("Couldn't open " + f.name + "."); });
+  });
+
   function starter() {
     S.bins = [newBin(0, 0, 2, 2), newBin(2, 0, 1, 2)];
     S.selId = S.bins[1].id;
@@ -613,4 +688,5 @@ import { createExport, zip } from "./export.js";
   if (!S.bins.length) { try { if (localStorage.getItem(KEY) === null) starter(); } catch (e) { starter(); } }
   initThree();
   update();
+  drawLayouts();
 })();

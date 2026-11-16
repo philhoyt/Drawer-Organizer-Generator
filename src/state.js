@@ -96,5 +96,31 @@ function saveable(S) {
   return out;
 }
 
+// ---------------------------------------------------------------- layouts
+// A layout is the saved state with a name and a format tag, the same in the browser's list and in an exported file.
+var LAYOUT_FORMAT = "drawer-organizer-layout", MAX_LAYOUTS = 50, MAX_NAME = 60;
+function cleanName(name) { return String(name == null ? "" : name).replace(/\s+/g, " ").trim().slice(0, MAX_NAME); }
+function layoutFile(S, name) { return Object.assign({ format: LAYOUT_FORMAT, version: 1, name: cleanName(name) }, saveable(S)); }
+// A layout read back into a fresh state, checked the same way as the saved session. Null if it isn't a layout at all.
+// dropped counts bins that couldn't be placed (off the grid, overlapping, or junk).
+function readLayout(data) {
+  if (!data || typeof data !== "object" || data.format !== LAYOUT_FORMAT) return null;
+  var T = createState(), nextId = restoreState(T, data), n = Array.isArray(data.bins) ? data.bins.length : 0;
+  return { S: T, nextId: nextId, name: cleanName(data.name), dropped: Math.max(0, n - T.bins.length) };
+}
+// The browser's list of saved layouts: entries that aren't layouts are dropped, names are trimmed, newest first.
+function cleanLayouts(raw) {
+  return (Array.isArray(raw) ? raw : []).filter(function (l) { return l && typeof l === "object" && cleanName(l.name) && l.data && l.data.format === LAYOUT_FORMAT; })
+    .map(function (l) { return { name: cleanName(l.name), savedAt: isNum(l.savedAt) ? l.savedAt : 0, data: l.data }; })
+    .sort(function (a, b) { return b.savedAt - a.savedAt; }).slice(0, MAX_LAYOUTS);
+}
+// Save under a name: replaces a layout of the same name (ignoring case), newest first. Returns the new list and whether it replaced one.
+function putLayout(list, name, data, now) {
+  var n = cleanName(name), key = n.toLowerCase(), had = list.some(function (l) { return l.name.toLowerCase() === key; });
+  var out = [{ name: n, savedAt: now, data: data }].concat(list.filter(function (l) { return l.name.toLowerCase() !== key; }));
+  return { list: out.slice(0, MAX_LAYOUTS), replaced: had };
+}
+
+export { LAYOUT_FORMAT, MAX_LAYOUTS, cleanName, layoutFile, readLayout, cleanLayouts, putLayout };
 export { MM_PER_IN, DRAWER, FIT, BIN_OPTS, STEP_LIMITS, BIN_ENUMS, TRAY_GAP, DIVIDER_T, MIN_BIN_H, MIN_STACK_PART, TARGET_CELL, MIN_CELL, MAX_COUNT,
          DRAWER_KEYS, FIT_KEYS, LIMITS, clamp, parseLength, formatLength, unitName, makeBin, createState, cleanBin, restoreState, saveable };

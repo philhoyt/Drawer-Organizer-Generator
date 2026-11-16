@@ -20,6 +20,12 @@ It runs in your browser. No install, no account. To run it from a local checkout
 
 Your layout saves itself in the browser and comes back next time. **Undo** and **Redo** (⌘Z, ⇧⌘Z) step back through every change to the bins, grid, drawer, and fit settings.
 
+## Saved layouts
+
+Open **Saved layouts** to keep more than one drawer. Name the current layout and press **Save**; saving under a name that's already there replaces it. Click a saved layout to load it. That replaces what's on screen, and **Undo** brings it back.
+
+Saved layouts live in this browser. **Export file** downloads the current layout as a `.json` file, to back it up or open it on another computer. **Import file** loads one and adds it to the list. An imported file goes through the same checks as a saved session: bad numbers are clamped, and bins that run off the grid or overlap are left out (the status line says how many).
+
 ## Units
 
 Switch between mm and inches at the top of the **Drawer** panel. Inches take decimals or fractions: `14.375`, `14 3/8`, and `14-3/8` all work. You can also type a unit on the end (`365mm`, `2"`) to override the toggle for one field. Everything is stored in millimetres, so switching back and forth never drifts.
@@ -89,7 +95,7 @@ npm run check
 
 `npm run check` lints with ESLint and runs the tests; `npm run lint` and `npm test` do each on its own. ESLint is the only dependency. The tests run on Node's built-in runner:
 
-- unit tests for unit parsing, the grid math, placement and bed checks, regridding, auto-fill, split and merge, and the checked restore of saved state
+- unit tests for unit parsing, the grid math, placement and bed checks, regridding, auto-fill, split and merge, and the checked restore of saved state and layout files
 - every bin, divided bin, scooped bin, stacked base, and tray is checked for a closed mesh, and its enclosed volume is compared with the volume worked out from the spec
 - golden tests hash the exported zips for a set of layouts and compare them with values recorded from the real page, so any change to the geometry or the export format shows up as a failure. Re-record them only when the change is intended.
 

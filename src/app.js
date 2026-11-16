@@ -411,7 +411,6 @@ import { createExport, zip } from "./export.js";
   function updateDrawer() {
     var bp = bedPresetOf(S);
     $("bedPreset").value = bp ? bp.id : "";
-    $("bedHint").textContent = "Bed " + S.bedX + " × " + S.bedY + " mm" + (bp ? "" : ", set under Fit and print") + ". Bins bigger than the bed are flagged.";
     setPressed("units", S.units);
     document.querySelectorAll(".u").forEach(function (s) { s.textContent = "(" + unitName(S.units) + ")"; });
     DRAWER_KEYS.forEach(function (k) { setIfIdle(k, num(S[k])); });
@@ -600,7 +599,7 @@ import { createExport, zip } from "./export.js";
   });
   $("bedPreset").addEventListener("change", function () {
     var p = BEDS[$("bedPreset").value];
-    if (!p) { S.bedPreset = ""; $("advGroup").open = true; say("Set the bed size under Fit and print."); update(); return; }
+    if (!p) { S.bedPreset = ""; say("Type the bed size below."); update(); $("bedX").focus(); return; }
     S.bedPreset = p.id; S.bedX = p.x; S.bedY = p.y;
     var big = oversized(S, S.bins).length;
     say("Bed set to " + p.name + ", " + p.x + " × " + p.y + " mm." + (big ? " " + big + " bin" + (big > 1 ? "s are" : " is") + " now too big for it." : ""));

@@ -15,10 +15,10 @@ It runs in your browser. No install, no account. To run it from a local checkout
 1. Measure the inside of the drawer: width (left to right as you face it), depth (front to back), height, and the corner radius if the corners are rounded. Measure height to the lowest thing above the drawer, so it still closes.
 2. Pick how many columns and rows. The app suggests counts that give cells near 50 mm.
 3. Drag across empty cells on the floor map to draw a bin. Drag a bin to move it. Or press **Auto-fill** to fill the empty cells.
-4. Select a bin to set a shorter height, dividers, or stacking.
+4. Select a bin to set a shorter height, dividers, a finger scoop, or stacking. Split it in two, or shift-click several bins and merge them.
 5. Click **Download all bins**. Matching bins share one STL, and the file name says how many to print.
 
-Your layout saves itself in the browser and comes back next time.
+Your layout saves itself in the browser and comes back next time. **Undo** and **Redo** (⌘Z, ⇧⌘Z) step back through every change to the bins, grid, drawer, and fit settings.
 
 ## Units
 
@@ -46,7 +46,9 @@ If the drawer has rounded inside corners, enter the radius. A bin in a corner ge
 
 - **Height.** Every bin is the drawer height unless you set it shorter. Clear the box to follow the drawer again.
 - **Dividers.** Split a bin into compartments across W, D, or both.
-- **Stacking.** A stacked bin is a shorter bottom bin plus a lift-out tray. The tray has a plug that drops inside the bin's rim, and together they fill the bin's height. The top can be one tray, two (across W or D), or four. Split tops get support ribs in the bottom bin. Trays can have their own dividers. It works the same way as in the Storehouse Bin Builder; see its [STACKING.md](https://github.com/philhoyt/Storehouse-Bin-Generator/blob/main/STACKING.md) for how the parts fit together.
+- **Split and merge.** **Split left | right** or **Split front | back** cuts the selected bin in two; both halves keep its options. Shift-click (or ⌘-click) more bins to pick them, then **Merge** joins them, as long as they fill a rectangle with no gaps.
+- **Finger scoop.** A curved ramp from the floor up the front wall of each compartment, so small parts slide out instead of catching in the corner. It follows the dividers, goes in every tray of a stacked bin, and shrinks to fit short bins and narrow compartments. Set the radius under **Fit and print** (default 12 mm).
+- **Stacking.** A stacked bin is a shorter bottom bin plus a lift-out tray. The tray has a plug that drops inside the bin's rim, and together they fill the bin's height. Type the **Bottom bin** or **Top tray** height (or drag the slider) and the other takes up the rest; each is at least 15 mm. The top can be one tray, two (across W or D), or four. Split tops get support ribs in the bottom bin. Trays can have their own dividers. It works the same way as in the Storehouse Bin Builder; see its [STACKING.md](https://github.com/philhoyt/Storehouse-Bin-Generator/blob/main/STACKING.md) for how the parts fit together.
 
 Bins stay put by friction. There are no feet, clips, or baseplate.
 
@@ -57,6 +59,7 @@ Bins stay put by friction. There are no feet, clips, or baseplate.
 | Tag | Meaning |
 |---|---|
 | `-div3x2` | 3 compartments across W, 2 across D |
+| `-scoop` | finger scoops |
 | `-stack-base30-rib4` | bottom bin of a stacked bin, 30 mm tall, ribs for 4 trays |
 | `-stack-top34-split4` | top tray, 34 mm tall including the plug, one of 4 |
 | `-round12.5-FL` | front-left corner rounded to 12.5 mm |
@@ -72,6 +75,7 @@ Bins stay put by friction. There are no feet, clips, or baseplate.
 | Bin corner radius | 3 mm |
 | Taper per side | 1.5° |
 | Stack plug depth / clearance | 4 mm / 0.4 mm |
+| Finger scoop radius | 12 mm |
 | Bed | 220 × 220 mm |
 
 If bins are tight in the drawer, raise the wall clearance. If they're tight against each other, raise the bin clearance. Print one small bin first.
@@ -85,8 +89,8 @@ npm run check
 
 `npm run check` lints with ESLint and runs the tests; `npm run lint` and `npm test` do each on its own. ESLint is the only dependency. The tests run on Node's built-in runner:
 
-- unit tests for unit parsing, the grid math, placement and bed checks, regridding, auto-fill, and the checked restore of saved state
-- every bin, divided bin, stacked base, and tray is checked for a closed mesh, and its enclosed volume is compared with the volume worked out from the spec
+- unit tests for unit parsing, the grid math, placement and bed checks, regridding, auto-fill, split and merge, and the checked restore of saved state
+- every bin, divided bin, scooped bin, stacked base, and tray is checked for a closed mesh, and its enclosed volume is compared with the volume worked out from the spec
 - golden tests hash the exported zips for a set of layouts and compare them with values recorded from the real page, so any change to the geometry or the export format shows up as a failure. Re-record them only when the change is intended.
 
 The mesh code uses its own trig series instead of `Math.sin` and friends so that every JavaScript engine produces the same bytes. GitHub Actions runs the same check on every push and pull request, and publishes the site to GitHub Pages only when it passes on `main`.
@@ -97,8 +101,8 @@ The mesh code uses its own trig series instead of `Math.sin` and friends so that
 |---|---|
 | `index.html` | The page: markup and styles. Loads three.js from a CDN and the app from `src/`. |
 | `src/app.js` | Everything that touches the page: drawer inputs, the floor map, the panel, the 3D view, downloads. |
-| `src/layout.js` | The stretching grid, placement rules, bed checks, regridding, auto-fill, drawer-corner rounding. |
-| `src/geometry.js` | Meshes for tapered bins, dividers, stacking trays, and ribs. |
+| `src/layout.js` | The stretching grid, placement rules, bed checks, regridding, auto-fill, split and merge, drawer-corner rounding. |
+| `src/geometry.js` | Meshes for tapered bins, dividers, finger scoops, stacking trays, and ribs. |
 | `src/export.js` | File names, grouping, the STL and zip writers. |
 | `src/state.js` | Defaults, limits, unit parsing, and the checked restore of saved state. |
 | `test/` | Node tests. Golden checksums of exports, mesh checks, and unit tests. |

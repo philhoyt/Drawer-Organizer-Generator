@@ -51,7 +51,7 @@ Same as the sibling apps, **except no OpenSCAD version**.
 - **Dividers:** split a bin into compartments across W and/or D, like Storehouse.
 - **Stacking trays:** ported from Storehouse. A shorter bottom bin plus a lift-out tray with a plug that drops inside the rim. Splits into 1, 2 across W, 2 across D, or 4. Split tops get support ribs. Trays can have their own dividers. The tray height fills up to the bin's set height.
 - **Anchoring:** friction fit only. No feet, pad recesses, baseplate, or clips.
-- **Not in v1:** labels, finger scoop.
+- **Not in v1:** labels. (Finger scoops came in v1.1, below.)
 
 ## Fit and print
 
@@ -120,3 +120,12 @@ Other choices made in v1:
 - **Defaults.** First visit: a 400 × 300 × 60 mm drawer with square corners on an 8 × 6 grid, plus two starter bins.
 - **Dividers** run full height, or stop 1 mm under the tray plug on a stacked bin. There's no divider-height setting in v1.
 - **Drawing over the bed limit.** A drag stops growing at the last size that fits the bed, and the status line says why. The W/D steppers refuse the same way.
+
+## Added in v1.1
+
+Some features matched to GigaPrint's drawer organizer. Not taken: its 3MF plate packing, kitchen presets, randomized layouts, and per-bin wall and corner settings.
+
+- **Stack heights you type.** **Bottom bin** and **Top tray** fields, in the current unit, plus the slider. Type either and the other takes up the rest of the bin's height. Each part is still at least 15 mm, and a value outside that is clamped with a message.
+- **Split and merge.** Split cuts the selected bin in two across W or D. The left or front part gets the extra cell of an odd size, and both halves keep the bin's options. Shift-, ⌘- or Ctrl-click picks more bins. **Merge** is offered when two or more are picked and is enabled only when they fill a rectangle exactly (their cells add up to the bounding box). The merged bin keeps the options of the bin selected first and must fit the bed. Delete removes every picked bin.
+- **Undo and redo** replace the one-step undo. `update()` records a step whenever the bins, grid counts, drawer, or fit settings changed since the last step. It doesn't record mid-drag or while the stack slider is moving. The history holds 100 steps and isn't saved. ⌘Z undoes; ⇧⌘Z or ⌘Y redoes.
+- **Finger scoops,** a per-bin option. Each one is a closed prism whose profile is a quarter-circle fillet from the floor up the front face of each row of compartments, in bins and in every tray. Like the dividers, it overlaps the wall, floor, and dividers, and the slicer unions them. Its ends stop where a rounded corner starts, so it never pokes out through a corner. Radius = min(setting, 0.6 × compartment depth minus a divider, 0.8 × usable height). It is skipped below 2 mm. The setting defaults to 12 mm (4–30). Files get `-scoop`. Without scoops, exports are byte-identical to v1, and the golden hashes are unchanged.

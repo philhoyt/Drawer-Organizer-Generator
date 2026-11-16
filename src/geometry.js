@@ -94,6 +94,7 @@ function createGeometry(S) {
     strip(sh, P0, P1); strip(sh, P1, B0); strip(sh, B0, B1); strip(sh, B1, I1); strip(sh, I1, I0); capFace(sh, I0, true); capFace(sh, P0, false);
     var parts = [solid(sh)];
     dividerWalls(parts, b.trayDivW, b.trayDivD, trayInner(t, H), S.floorT - 0.05, H);
+    if (b.scoop) scoops(parts, trayInner(t, H), b.trayDivD, S.floorT, H);
     return flatten(parts);
   }
   // Divider walls: nW sections across W (walls perpendicular to x) and nD across D, from zlo to zhi.
@@ -123,6 +124,36 @@ function createGeometry(S) {
     }
     parts.push(hexa(corners(zlo).concat(corners(zhi))));
   }
+  // Finger scoops: a curved fillet from the floor up the front wall of each row of compartments, so small parts slide
+  // out instead of catching in the corner. Each is a closed prism that runs a little into the wall, floor, and
+  // dividers; the slicer unions it with them, the same as the dividers. Its ends stop where a rounded corner starts.
+  function scoopR(inner, nD, zf, ztop) {
+    var I = inner(zf);
+    return Math.min(S.scoopR, (I.y / nD - DIVIDER_T) * 0.6, (ztop - zf) * 0.8);
+  }
+  function scoops(parts, inner, nD, zf, ztop) {
+    var R = scoopR(inner, nD, zf, ztop);
+    if (!(R >= 2)) return;
+    var I = inner(zf), ov = S.wall * 0.7, zlo = zf - 0.05, N = 8, along = I.y / 2, across = I.x / 2;
+    // how far the prism may reach toward a side wall (left: corner 3 at the front, 2 at the back; right: 0 and 1) between y lo and hi
+    function reach(lo, hi, kFront, kBack) {
+      var a = Math.max(Math.abs(lo), Math.abs(hi)), k = (lo + hi) / 2 < 0 ? kFront : kBack, r = clampR(I.r[k], I.x, I.y);
+      if (a <= along - r) return across + ov; // a straight stretch of wall: run into it
+      var dx = Math.min(a - (along - r), r);
+      return across - r + Math.sqrt(r * r - dx * dx);
+    }
+    for (var j = 0; j < nD; j++) {
+      var y0 = j === 0 ? -along : (j / nD - 0.5) * I.y + DIVIDER_T / 2;
+      var xl = -reach(y0 - ov, y0 + R, 3, 2), xr = reach(y0 - ov, y0 + R, 0, 1);
+      var prof = [[y0 - ov, zlo], [y0 + R, zlo]];
+      for (var i = 0; i <= N; i++) { var sc = sincos((270 - 90 * i / N) * Math.PI / 180); prof.push([y0 + R + R * sc[0], zf + R + R * sc[1]]); }
+      prof.push([y0 - ov, zf + R]);
+      var L = prof.map(function (p) { return [xl, p[0], p[1]]; }), Rr = prof.map(function (p) { return [xr, p[0], p[1]]; }), tris = [];
+      strip(tris, L, Rr);
+      for (var q = 1; q < prof.length - 1; q++) tris.push([L[0], L[q + 1], L[q]], [Rr[0], Rr[q], Rr[q + 1]]);
+      parts.push(solid(tris));
+    }
+  }
   function dividerTop(b, D) { return stacked(b) ? D.zt - S.plugDepth - 1 : D.zt; } // leave room for the tray plug
   function buildBin(b) {
     var D = dims(b), parts = [], sh = [];
@@ -133,6 +164,7 @@ function createGeometry(S) {
     parts.push(solid(sh));
     var innerB = function (z) { return innerAt(D, z); };
     dividerWalls(parts, b.divW, b.divD, innerB, D.zf - 0.05, dividerTop(b, D));
+    if (b.scoop) scoops(parts, innerB, b.divD, D.zf, dividerTop(b, D));
     if (stacked(b) && b.split !== "1") {
       // support ribs under split lines, up to rim height, sized to sit between neighbouring tray plugs
       var rt = 2 * S.wall + TRAY_GAP, sp = splitOf(b.split);
@@ -143,7 +175,7 @@ function createGeometry(S) {
   }
 
   return { binH: binH, canStack: canStack, stacked: stacked, lowerH: lowerH, trayH: trayH, dims: dims, outerAt: outerAt, innerAt: innerAt,
-           trays: trays, trayInner: trayInner, buildTray: buildTray, buildBin: buildBin, dividerTop: dividerTop };
+           trays: trays, trayInner: trayInner, buildTray: buildTray, buildBin: buildBin, dividerTop: dividerTop, scoopR: scoopR };
 }
 
 export { createGeometry, flatten, ring, strip, capFace, signedVol, solid, hexa, sincos, tanDeg, clampR, radii4, offsetR, splitOf, SEG };

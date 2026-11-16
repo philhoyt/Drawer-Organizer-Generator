@@ -69,5 +69,6 @@ test("saved state round-trips", () => {
 test("cleanBin rejects junk and fills missing options", () => {
   assert.equal(cleanBin({ id: 1, c: 0, r: 0, w: 0, d: 1 }), null);
   assert.equal(cleanBin({ id: 1, c: 0, r: 0, w: 31, d: 1 }), null);
-  assert.deepEqual(cleanBin({ id: 2, c: 1, r: 2, w: 1, d: 1 }), { id: 2, c: 1, r: 2, w: 1, d: 1, h: 0, divW: 1, divD: 1, stack: false, lowerH: 0, split: "1", trayDivW: 1, trayDivD: 1 });
+  assert.deepEqual(cleanBin({ id: 2, c: 1, r: 2, w: 1, d: 1 }), { id: 2, c: 1, r: 2, w: 1, d: 1, h: 0, divW: 1, divD: 1, stack: false, lowerH: 0, split: "1", trayDivW: 1, trayDivD: 1, scoop: false });
+  assert.equal(cleanBin({ id: 2, c: 1, r: 2, w: 1, d: 1, scoop: "yes" }).scoop, true);
 });

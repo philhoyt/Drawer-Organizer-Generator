@@ -4,8 +4,8 @@ import { canPlace, maxCount, suggestCount, TARGET_CELL, MIN_CELL, MAX_COUNT } fr
 
 var MM_PER_IN = 25.4;
 var DRAWER = { drawerW: 400, drawerD: 300, drawerH: 60, drawerR: 0 };
-var FIT = { binClear: 0.25, wallClear: 0.25, wall: 1.6, floorT: 1.6, cornerR: 3, draft: 1.5, plugDepth: 4, plugClear: 0.4, bedX: 220, bedY: 220 };
-var BIN_OPTS = { h: 0, divW: 1, divD: 1, stack: false, lowerH: 0, split: "1", trayDivW: 1, trayDivD: 1 }; // h 0 = drawer height
+var FIT = { binClear: 0.25, wallClear: 0.25, wall: 1.6, floorT: 1.6, cornerR: 3, draft: 1.5, plugDepth: 4, plugClear: 0.4, scoopR: 12, bedX: 220, bedY: 220 };
+var BIN_OPTS = { h: 0, divW: 1, divD: 1, stack: false, lowerH: 0, split: "1", trayDivW: 1, trayDivD: 1, scoop: false }; // h 0 = drawer height
 var STEP_LIMITS = { divW: [1, 10], divD: [1, 10], trayDivW: [1, 8], trayDivD: [1, 8] };
 var BIN_ENUMS = { split: ["1", "w", "d", "4"] };
 var TRAY_GAP = 0.6;   // stacking: gap between split trays
@@ -16,7 +16,7 @@ var DRAWER_KEYS = Object.keys(DRAWER), FIT_KEYS = Object.keys(FIT);
 // what the inputs allow, used to clamp saved values and edits (mm)
 var LIMITS = { drawerW: [30, 1500], drawerD: [30, 1500], drawerH: [MIN_BIN_H, 300], drawerR: [0, 50],
                binClear: [0, 2], wallClear: [0, 5], wall: [0.8, 4], floorT: [0.8, 4], cornerR: [0.5, 10], draft: [0, 4],
-               plugDepth: [2, 10], plugClear: [0, 1.5], bedX: [50, 1000], bedY: [50, 1000] };
+               plugDepth: [2, 10], plugClear: [0, 1.5], scoopR: [4, 30], bedX: [50, 1000], bedY: [50, 1000] };
 
 function isNum(v) { return typeof v === "number" && isFinite(v); }
 function isInt(v, lo, hi) { return isNum(v) && v === Math.floor(v) && v >= lo && v <= hi; }
@@ -63,8 +63,8 @@ function cleanBin(raw) { // a saved bin with every field checked, or null if it 
   Object.keys(BIN_ENUMS).forEach(function (k) { if (BIN_ENUMS[k].indexOf(b[k]) < 0) b[k] = BIN_OPTS[k]; });
   ["h", "lowerH"].forEach(function (k) { if (!isNum(b[k]) || b[k] < 0) b[k] = 0; else b[k] = Math.min(LIMITS.drawerH[1], b[k]); });
   Object.keys(STEP_LIMITS).forEach(function (k) { b[k] = isNum(b[k]) ? clamp(Math.round(b[k]), STEP_LIMITS[k]) : BIN_OPTS[k]; });
-  b.stack = !!b.stack;
-  return { id: b.id, c: b.c, r: b.r, w: b.w, d: b.d, h: b.h, divW: b.divW, divD: b.divD, stack: b.stack, lowerH: b.lowerH, split: b.split, trayDivW: b.trayDivW, trayDivD: b.trayDivD };
+  b.stack = !!b.stack; b.scoop = !!b.scoop;
+  return { id: b.id, c: b.c, r: b.r, w: b.w, d: b.d, h: b.h, divW: b.divW, divD: b.divD, stack: b.stack, lowerH: b.lowerH, split: b.split, trayDivW: b.trayDivW, trayDivD: b.trayDivD, scoop: b.scoop };
 }
 // Fills S from whatever was saved: a wrong type, an out-of-range number, or a bin that runs off the grid or overlaps
 // another is dropped or clamped rather than breaking startup. Bins too big for the bed are kept; the map flags them.

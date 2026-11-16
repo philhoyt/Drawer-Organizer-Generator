@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createState, makeBin } from "../src/state.js";
-import { pitch, footprint, fitsBed, oversized, binBox, maxCount, suggestCount, canPlace, binAt, usedCells, findSpot, regrid, fillSizes, cornerRadii } from "../src/layout.js";
+import { pitch, footprint, fitsBed, oversized, binBox, maxCount, suggestCount, canPlace, binAt, usedCells, findSpot, regrid, fillSizes, splitParts, mergeRect, cornerRadii } from "../src/layout.js";
 import { fresh } from "./helpers.js";
 
 const close = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, (msg || "") + " " + a + " vs " + b);
@@ -95,4 +95,22 @@ test("only a bin in a corner of a rounded drawer gets that corner rounded, conce
   assert.deepEqual(r(0, 0, 8, 6), [12, 12, 12, 12]);   // the whole drawer
   assert.deepEqual(r(3, 0, 2, 2), [3, 3, 3, 3]);       // against the front wall, not in a corner
   S.drawerR = 3; assert.deepEqual(r(0, 0, 1, 1), [3, 3, 3, 3]); // drawer radius no bigger than the bin's own
+});
+
+test("split halves a bin, the left or front part taking the odd cell", () => {
+  const b = makeBin(1, 2, 1, 3, 2);
+  assert.deepEqual(splitParts(b, "w"), [{ c: 2, r: 1, w: 2, d: 2 }, { c: 4, r: 1, w: 1, d: 2 }]);
+  assert.deepEqual(splitParts(b, "d"), [{ c: 2, r: 1, w: 3, d: 1 }, { c: 2, r: 2, w: 3, d: 1 }]);
+  assert.equal(splitParts(makeBin(2, 0, 0, 1, 4), "w"), null);
+});
+
+test("merge needs bins that fill a rectangle exactly", () => {
+  const a = makeBin(1, 0, 0, 2, 1), b = makeBin(2, 0, 1, 1, 1), c = makeBin(3, 1, 1, 1, 1), far = makeBin(4, 3, 0, 1, 1);
+  assert.deepEqual(mergeRect([a, b, c]), { c: 0, r: 0, w: 2, d: 2 });
+  assert.equal(mergeRect([a, b]), null);        // L shape leaves a gap
+  assert.equal(mergeRect([a, far]), null);      // not touching
+  assert.equal(mergeRect([a]), null);           // nothing to merge
+  // split then merge gives the bin back
+  const big = makeBin(5, 1, 2, 3, 3), parts = splitParts(big, "w").map((p, i) => makeBin(10 + i, p.c, p.r, p.w, p.d));
+  assert.deepEqual(mergeRect(parts), { c: 1, r: 2, w: 3, d: 3 });
 });

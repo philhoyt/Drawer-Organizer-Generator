@@ -119,3 +119,49 @@ test("bin heights: drawer height by default, a shorter override, never taller, s
   assert.ok(!geo.stacked(newBin(0, 0, 1, 1, { stack: true, h: 29 })));
   assert.equal(geo.lowerH(newBin(0, 0, 1, 1, { stack: true, lowerH: 40 })), 30); // leaves 15 mm for the tray
 });
+
+// a scoop prism: the profile is the (R + ov) x (R + 0.05) box minus the polygon quarter disc, run across the bin
+function scoopArea(S, R) { const N = 8, ov = S.wall * 0.7; return (R + ov) * (R + 0.05) - N * R * R / 2 * Math.sin(Math.PI / 2 / N); }
+
+test("a finger scoop is closed and adds the volume of its profile across the bin", () => {
+  const { S, geo, newBin } = fresh();
+  const b = newBin(1, 1, 2, 1, { scoop: true }), tris = geo.buildBin(b);
+  closed(tris, "scooped bin");
+  const sh = shellVolume(S, b, 60, [3, 3, 3, 3]), I = sh.inner(S.floorT), R = geo.scoopR(z => geo.innerAt(geo.dims(b), z), 1, S.floorT, 60);
+  assert.equal(R, 12);
+  const ri = Math.max(0.3, S.cornerR - 60 * tan(S.draft) * (1 - S.floorT / 60) - S.wall); // front corners at the floor: the prism stops where they start
+  near(signedVol(tris), sh.v + scoopArea(S, R) * (I.x - 2 * ri), "scooped bin");
+  assert.equal(ex(b), "2x1-100x50x60-scoop");
+  function ex(bin) { return fresh().ex.fileStem(bin); }
+});
+
+test("scoops follow compartments, trays, and short bins, and stay inside a rounded corner", () => {
+  const { S, geo, newBin } = fresh({ drawerR: 30 });
+  const divided = newBin(0, 0, 2, 2, { scoop: true, divD: 3, divW: 2 });
+  closed(geo.buildBin(divided), "scooped divided bin");
+  const plain = newBin(0, 0, 2, 2, { divD: 3, divW: 2 });
+  assert.ok(signedVol(geo.buildBin(divided)) > signedVol(geo.buildBin(plain)) + 3 * 1000, "a scoop in each of 3 rows");
+  const short = newBin(4, 0, 1, 1, { scoop: true, h: 12 }), D = geo.dims(short);
+  assert.ok(geo.scoopR(z => geo.innerAt(D, z), 1, D.zf, D.zt) <= (12 - S.floorT) * 0.8 + 1e-9);
+  closed(geo.buildBin(short), "short scooped bin");
+  const st = newBin(0, 3, 2, 2, { scoop: true, stack: true, split: "w", trayDivD: 2 });
+  closed(geo.buildBin(st), "scooped stack base");
+  geo.trays(st).forEach((t, k) => closed(geo.buildTray(st, t), "scooped tray " + k));
+  // the front-left corner bin: every vertex inside the outer outline
+  const Dd = geo.dims(divided);
+  geo.buildBin(divided).flat().forEach(p => {
+    const o = geo.outerAt(Dd, p[2]), hx = o.x / 2, hy = o.y / 2, k = (p[0] >= 0 ? (p[1] >= 0 ? 1 : 0) : (p[1] >= 0 ? 2 : 3));
+    const r = Math.max(0.3, Math.min(o.r[k], hx - 0.05, hy - 0.05)), ax = Math.abs(p[0]), ay = Math.abs(p[1]);
+    assert.ok(ax <= hx + 1e-9 && ay <= hy + 1e-9, "outside the box at " + p);
+    if (ax > hx - r && ay > hy - r) assert.ok(Math.hypot(ax - (hx - r), ay - (hy - r)) <= r + 1e-9, "outside the rounded corner at " + p);
+  });
+});
+
+test("stack heights: the bottom bin and top tray share the bin height, each at least 15 mm", () => {
+  const { S, geo, newBin } = fresh({ drawerH: 80 });
+  [[20, 20, 60], [55, 55, 25], [5, 15, 65], [70, 65, 15]].forEach(([ask, bottom, top]) => {
+    const b = newBin(0, 0, 1, 1, { stack: true, lowerH: ask });
+    assert.equal(geo.lowerH(b), bottom); assert.equal(geo.trayH(b) - S.plugDepth, top);
+    assert.equal(Math.max(...geo.buildTray(b, geo.trays(b)[0]).flat().map(p => p[2])), top + S.plugDepth);
+  });
+});

@@ -88,6 +88,24 @@ function autoFill(S, bins, newBin) {
   return added;
 }
 
+// Split a bin in two across W (left | right) or D (front | back). The left or front part gets the extra cell of an
+// odd size. Returns the two cell rectangles, or null if the bin is one cell that way.
+function splitParts(b, axis) {
+  var n = axis === "w" ? b.w : b.d;
+  if (n < 2) return null;
+  var a = Math.ceil(n / 2);
+  return axis === "w" ? [{ c: b.c, r: b.r, w: a, d: b.d }, { c: b.c + a, r: b.r, w: b.w - a, d: b.d }]
+                      : [{ c: b.c, r: b.r, w: b.w, d: a }, { c: b.c, r: b.r + a, w: b.w, d: b.d - a }];
+}
+// The rectangle two or more bins fill exactly, or null if they leave a gap. Bins never overlap, so they fill their
+// bounding box exactly when their cells add up to its area.
+function mergeRect(list) {
+  if (!list || list.length < 2) return null;
+  var c0 = Infinity, r0 = Infinity, c1 = -Infinity, r1 = -Infinity;
+  list.forEach(function (b) { c0 = Math.min(c0, b.c); r0 = Math.min(r0, b.r); c1 = Math.max(c1, b.c + b.w); r1 = Math.max(r1, b.r + b.d); });
+  return usedCells(list) === (c1 - c0) * (r1 - r0) ? { c: c0, r: r0, w: c1 - c0, d: r1 - r0 } : null;
+}
+
 // Top-rim corner radii of a bin, in the order the mesh ring uses: front-right, back-right, back-left, front-left.
 // A bin in a corner of a rounded drawer gets that one corner rounded to match the drawer, concentric with it.
 var CORNER_NAMES = ["FR", "BR", "BL", "FL"];
@@ -103,4 +121,4 @@ function cornerRadii(S, b) {
 }
 
 export { TARGET_CELL, MIN_CELL, MAX_COUNT, CORNER_NAMES, gridSpan, maxCount, suggestCount, pitch, footprint, fitsBed, oversized, binBox,
-         inBounds, collides, canPlace, binAt, usedCells, findSpot, regrid, fillSizes, autoFill, cornerRadii };
+         inBounds, collides, canPlace, binAt, usedCells, findSpot, regrid, fillSizes, autoFill, splitParts, mergeRect, cornerRadii };

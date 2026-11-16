@@ -56,10 +56,11 @@ function createExport(S, geo) {
     var D = geo.dims(b), s = sizeStem(b);
     if (geo.stacked(b)) s += "-stack-base" + f1(geo.lowerH(b)) + (b.split === "1" ? "" : "-rib" + b.split);
     if (b.divW > 1 || b.divD > 1) s += "-div" + b.divW + "x" + b.divD;
+    if (b.scoop) s += "-scoop";
     return s + roundTag(D.radii);
   }
   function trayStem(b, t) {
-    return sizeStem(b) + "-stack-top" + f1(geo.trayH(b)) + SPLIT_NAME[b.split] + (b.trayDivW > 1 || b.trayDivD > 1 ? "-div" + b.trayDivW + "x" + b.trayDivD : "") + roundTag(t.radii);
+    return sizeStem(b) + "-stack-top" + f1(geo.trayH(b)) + SPLIT_NAME[b.split] + (b.trayDivW > 1 || b.trayDivD > 1 ? "-div" + b.trayDivW + "x" + b.trayDivD : "") + (b.scoop ? "-scoop" : "") + roundTag(t.radii);
   }
   function partsOf(b) { // every printable part of a bin: the bin itself, plus one entry per tray when stacked
     var base = { stem: fileStem(b), make: function () { return geo.buildBin(b); } };
@@ -70,6 +71,7 @@ function createExport(S, geo) {
     var bits = [], D = geo.dims(b), k = splitOf(b.split), nTrays = k.kx * k.ky;
     if (geo.stacked(b)) bits.push("stacked, " + nTrays + (nTrays > 1 ? " trays" : " tray"));
     if (b.divW > 1 || b.divD > 1) bits.push(b.divW * b.divD + " sections");
+    if (b.scoop) bits.push("scoop");
     if (roundTag(D.radii)) bits.push("rounded corner");
     return bits.join(" · ");
   }

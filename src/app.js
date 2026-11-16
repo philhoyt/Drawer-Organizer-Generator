@@ -18,28 +18,42 @@ import { createExport, zip } from "./export.js";
 
   var $ = function (id) { return document.getElementById(id); };
   function sel() { for (var i = 0; i < S.bins.length; i++) if (S.bins[i].id === S.selId) return S.bins[i]; return null; }
+  var picked = []; // ids of bins shift-clicked into the selection alongside the selected one (for merging), not saved
+  function selection() { var b = sel(); return b ? [b].concat(S.bins.filter(function (o) { return picked.indexOf(o.id) >= 0 && o !== b; })) : []; }
+  function togglePick(b) {
+    if (!sel()) { S.selId = b.id; return; }
+    if (b.id === S.selId) { if (picked.length) { S.selId = picked.shift(); } return; } // drop the main one; the next picked takes over
+    var i = picked.indexOf(b.id);
+    if (i >= 0) picked.splice(i, 1); else picked.push(b.id);
+  }
+  function multiKey(e) { return e.shiftKey || e.metaKey || e.ctrlKey; }
   function idx(b) { return S.bins.indexOf(b) + 1; }
   function len(mm) { return formatLength(mm, S.units) + " " + unitName(S.units); } // a length in the current unit, with the unit
   function num(mm) { return formatLength(mm, S.units); }
   var status = $("status"), undoBtn = $("undo");
-  var undo = null; // one step back from the last delete, clear, auto-fill, or regrid
-  function say(t) { status.textContent = t; undo = null; undoBtn.hidden = true; }
-  function sayUndo(t, u) { status.textContent = t; undo = u; undoBtn.hidden = false; }
-  function snapshot(undone) { return { bins: S.bins.map(function (b) { return Object.assign({}, b); }), cols: S.cols, rows: S.rows, autoGrid: S.autoGrid, selId: S.selId, undone: undone }; }
-  function doUndo() {
-    var u = undo; if (!u) return;
-    if (u.bin) { // put the deleted bin back where it was, or the nearest free spot
-      var b = u.bin;
-      if (!canPlace(b.c, b.r, b.w, b.d)) {
-        var spot = layout.findSpot(S, S.bins, b.w, b.d);
-        if (!spot) { say("No room to put that bin back. Move or delete a bin first."); update(); return; }
-        b.c = spot.c; b.r = spot.r;
-      }
-      S.bins.splice(Math.min(u.index, S.bins.length), 0, b); S.selId = b.id;
-    } else { S.bins = u.bins; S.cols = u.cols; S.rows = u.rows; S.autoGrid = u.autoGrid; S.selId = u.selId; }
-    say(u.undone); update();
+  function say(t) { status.textContent = t; undoBtn.hidden = true; }
+  function sayUndo(t) { status.textContent = t; undoBtn.hidden = false; } // a message about a change worth an Undo right there
+
+  // ---------------------------------------------------------------- history
+  // Undo and redo cover the whole layout: bins, grid, drawer, and fit settings. update() records a step whenever any of
+  // them changed since the last step (never mid-drag), so every control gets undo without its own bookkeeping.
+  var HIST_KEYS = ["cols", "rows", "autoGrid"].concat(DRAWER_KEYS, FIT_KEYS), past = [], future = [], cur = null, MAX_HIST = 100;
+  function take() { var s = { bins: S.bins.map(function (b) { return Object.assign({}, b); }), selId: S.selId }; HIST_KEYS.forEach(function (k) { s[k] = S[k]; }); return s; }
+  function keyOf(s) { var o = { bins: s.bins }; HIST_KEYS.forEach(function (k) { o[k] = s[k]; }); return JSON.stringify(o); }
+  function record() {
+    var s = take(), k = keyOf(s);
+    if (cur && cur.key === k) { cur.snap.selId = S.selId; return; }
+    if (cur) { past.push(cur); if (past.length > MAX_HIST) past.shift(); future = []; }
+    cur = { key: k, snap: s };
   }
-  undoBtn.addEventListener("click", doUndo);
+  function restoreSnap(s) { S.bins = s.bins.map(function (b) { return Object.assign({}, b); }); HIST_KEYS.forEach(function (k) { S[k] = s[k]; }); S.selId = s.selId; picked = []; }
+  function histStep(back) {
+    var from = back ? past : future, to = back ? future : past;
+    if (!from.length) return;
+    to.push(cur); cur = from.pop(); restoreSnap(cur.snap);
+    say(back ? "Undone." : "Redone."); update();
+  }
+  undoBtn.addEventListener("click", function () { histStep(true); });
 
   function canPlace(c, r, w, d, exceptId) { return layout.canPlace(S, S.bins, c, r, w, d, exceptId); }
   function binAt(c, r) { return layout.binAt(S.bins, c, r); }
@@ -51,14 +65,13 @@ import { createExport, zip } from "./export.js";
   // New counts: bins keep their cells; any that run off the new grid are cut back or dropped, with an undo.
   function setCounts(cols, rows, msg) {
     if (cols === S.cols && rows === S.rows) return;
-    var u = snapshot("Put the previous grid and bins back.");
     var g = layout.regrid(S.bins, cols, rows);
     S.cols = cols; S.rows = rows; S.bins = g.bins;
     if (!S.bins.some(function (b) { return b.id === S.selId; })) S.selId = S.bins.length ? S.bins[0].id : null;
     var bits = [];
     if (g.clipped.length) bits.push(g.clipped.length + " bin" + (g.clipped.length > 1 ? "s" : "") + " cut back to fit");
     if (g.dropped.length) bits.push(g.dropped.length + " bin" + (g.dropped.length > 1 ? "s" : "") + " removed");
-    if (bits.length) sayUndo("Grid is now " + cols + " × " + rows + ": " + bits.join(", ") + ".", u);
+    if (bits.length) sayUndo("Grid is now " + cols + " × " + rows + ": " + bits.join(", ") + ".");
     else if (msg) say(msg);
   }
   // After the drawer or the clearances change: follow the suggestion if the counts are automatic, else stay within limits.
@@ -103,13 +116,13 @@ import { createExport, zip } from "./export.js";
     binG.innerHTML = "";
     cellG.querySelectorAll(".cell").forEach(function (ce) { ce.classList.toggle("taken", !!binAt(+ce.getAttribute("data-c"), +ce.getAttribute("data-r"))); });
     var on = sel();
-    S.bins.forEach(function (b) { if (b !== on) drawOne(b, false); });
+    S.bins.forEach(function (b) { if (b !== on) drawOne(b, false, picked.indexOf(b.id) >= 0); });
     if (on) drawOne(on, true);
   }
-  function drawOne(b, isOn) {
+  function drawOne(b, isOn, isPicked) {
     var B = binBox(S, b), M = mapScale(), k = M / 240, R = dims(b).radii;
     var x = B.x0 + k, y = sy(B.y0, B.y1 - B.y0) + k, w = B.x1 - B.x0 - 2 * k, h = B.y1 - B.y0 - 2 * k;
-    var bad = !fitsBed(S, b.w, b.d), cls = "bin" + (isOn ? " on" : "") + (bad ? " bad" : "");
+    var bad = !fitsBed(S, b.w, b.d), cls = "bin" + (isOn ? " on" : "") + (isPicked ? " picked" : "") + (bad ? " bad" : "");
     if (R.some(function (v) { return v !== S.cornerR; })) el("path", { d: roundedPath(x, y, w, h, R, M), class: cls, "vector-effect": "non-scaling-stroke" }, binG);
     else el("rect", { x: x, y: y, width: w, height: h, rx: M / 120, class: cls, "vector-effect": "non-scaling-stroke" }, binG);
     if (stacked(b)) {
@@ -141,6 +154,8 @@ import { createExport, zip } from "./export.js";
     var c = cellAt(e); if (!c) return;
     e.preventDefault();
     var hit = binAt(c.c, c.r);
+    if (hit && multiKey(e)) { togglePick(hit); update(); return; }
+    picked = [];
     if (hit) {
       S.selId = hit.id;
       drag = { mode: "move", id: hit.id, offC: c.c - hit.c, offR: c.r - hit.r };
@@ -326,29 +341,54 @@ import { createExport, zip } from "./export.js";
     var ol = $("binlist"); ol.innerHTML = "";
     S.bins.forEach(function (b) {
       var li = document.createElement("li"), bad = !fitsBed(S, b.w, b.d), D = dims(b), what = describe(b);
-      li.tabIndex = 0; li.className = (b.id === S.selId ? "on" : "") + (bad ? " bad" : "");
+      li.tabIndex = 0; li.className = (b.id === S.selId || picked.indexOf(b.id) >= 0 ? "on" : "") + (bad ? " bad" : "");
       li.innerHTML = '<span class="num">' + idx(b) + '</span><span class="what">' + codeOf(b) + " · " + num(D.bx) + " × " + num(D.by) + " × " + num(binH(b)) + " " + unitName(S.units) +
         "<small>" + (bad ? "bigger than the bed" + (what ? " · " : "") : "") + what + '</small></span><button type="button" class="del" aria-label="Delete bin ' + idx(b) + '">×</button>';
       li.addEventListener("click", function (e) {
-        if (e.target.classList.contains("del")) { removeBin(b.id); return; }
-        S.selId = b.id; update();
+        if (e.target.classList.contains("del")) { removeBins([b.id]); return; }
+        if (multiKey(e)) togglePick(b); else { picked = []; S.selId = b.id; }
+        update();
       });
       li.addEventListener("keydown", function (e) {
         if (e.target.classList.contains("del")) return; // let the button handle its own Enter/Space
-        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); S.selId = b.id; update(); }
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); picked = []; S.selId = b.id; update(); }
       });
       ol.appendChild(li);
     });
     $("emptyNote").hidden = S.bins.length > 0;
   }
   function describe(b) { var d = ex.describe(b); return (b.h > 0 && b.h < S.drawerH ? "shorter than the drawer" + (d ? " · " : "") : "") + d; }
-  function removeBin(id) {
-    var i = S.bins.findIndex(function (b) { return b.id === id; }); if (i < 0) return;
-    var gone = S.bins.splice(i, 1)[0], label = "bin " + (i + 1) + " (" + codeOf(gone) + ")";
-    if (S.selId === id) S.selId = S.bins.length ? S.bins[Math.min(i, S.bins.length - 1)].id : null;
-    sayUndo("Deleted " + label + ".", { bin: gone, index: i, undone: "Restored " + label + "." });
+  function removeBins(goneIds) {
+    var first = S.bins.findIndex(function (b) { return goneIds.indexOf(b.id) >= 0; }); if (first < 0) return;
+    var gone = S.bins.filter(function (b) { return goneIds.indexOf(b.id) >= 0; });
+    var label = gone.length > 1 ? gone.length + " bins" : "bin " + (first + 1) + " (" + codeOf(gone[0]) + ")";
+    S.bins = S.bins.filter(function (b) { return goneIds.indexOf(b.id) < 0; });
+    if (goneIds.indexOf(S.selId) >= 0) S.selId = S.bins.length ? S.bins[Math.min(first, S.bins.length - 1)].id : null;
+    picked = [];
+    sayUndo("Deleted " + label + ".");
     update();
   }
+  function ids(list) { return list.map(function (b) { return b.id; }); }
+  // Split the selected bin in two; both halves keep its options.
+  function splitSel(axis) {
+    var b = sel(), parts = b && layout.splitParts(b, axis); if (!parts) return;
+    var nb = newBin(parts[1].c, parts[1].r, parts[1].w, parts[1].d, optsOf(b));
+    Object.assign(b, parts[0]);
+    S.bins.splice(S.bins.indexOf(b) + 1, 0, nb);
+    sayUndo("Split bin " + idx(b) + " into " + codeOf(b) + " and " + codeOf(nb) + (axis === "w" ? ", left and right." : ", front and back."));
+    update();
+  }
+  // Merge the selected bins into one, if they fill a rectangle. It takes the options of the bin selected first.
+  function mergeSel() {
+    var list = selection(), R = layout.mergeRect(list); if (!R) return;
+    if (!fitsBed(S, R.w, R.d)) { var f = footprint(S, R.w, R.d); say("Merged, they'd be " + num(f.x) + " × " + num(f.y) + " " + unitName(S.units) + ": too big for the " + S.bedX + " × " + S.bedY + " mm bed."); return; }
+    var keep = list[0], rest = ids(list.slice(1));
+    S.bins = S.bins.filter(function (b) { return rest.indexOf(b.id) < 0; });
+    Object.assign(keep, R); picked = [];
+    sayUndo("Merged " + list.length + " bins into a " + codeOf(keep) + ".");
+    update();
+  }
+  function optsOf(b) { var o = {}; Object.keys(BIN_OPTS).forEach(function (k) { o[k] = b[k]; }); return o; }
 
   function updateHeader(b, D) {
     var code = $("code");
@@ -385,7 +425,15 @@ import { createExport, zip } from "./export.js";
     $("stackBox").hidden = !stacked(b);
     $("divLabel").textContent = stacked(b) ? "Bottom bin dividers" : "Dividers";
     $("lowerH").min = MIN_STACK_PART; $("lowerH").max = binH(b) - MIN_STACK_PART; $("lowerH").value = lowerH(b);
-    $("lowerH-v").textContent = num(lowerH(b)) + " bin + " + num(trayH(b) - S.plugDepth) + " tray " + unitName(S.units);
+    setIfIdle("stackBottom", num(lowerH(b))); setIfIdle("stackTop", num(binH(b) - lowerH(b)));
+    $("stackHNote").textContent = "Together they fill the bin's " + len(binH(b)) + ". Each part is at least " + len(MIN_STACK_PART) + ". The tray also has a " + len(S.plugDepth) + " plug that drops into the bottom bin.";
+    setPressed("scoop", b.scoop ? "on" : "off");
+    var list = selection(), many = list.length > 1;
+    $("splitW").disabled = b.w < 2 || many; $("splitD").disabled = b.d < 2 || many;
+    $("merge").hidden = !many; $("merge").disabled = !layout.mergeRect(list);
+    $("merge").textContent = "Merge " + list.length + " bins";
+    $("mergeNote").hidden = !many || !!layout.mergeRect(list);
+    $("delSel").textContent = many ? "Delete " + list.length + " bins" : "Delete bin";
     $("trayDivW-out").textContent = b.trayDivW; $("trayDivD-out").textContent = b.trayDivD;
     $("divW-out").textContent = b.divW; $("divD-out").textContent = b.divD;
     $("specs").innerHTML = specRows(b, D).map(function (s) { return '<div class="spec"><span>' + s[0] + "</span><b>" + s[1] + "</b></div>"; }).join("");
@@ -399,6 +447,7 @@ import { createExport, zip } from "./export.js";
     var ob = geo.outerAt(D, 0), inn = geo.innerAt(D, D.zt);
     return [["Top outside", num(D.bx) + " × " + num(D.by)], ["Bottom outside", num(ob.x) + " × " + num(ob.y)], ["Inside at rim", num(inn.x) + " × " + num(inn.y)], ["Height", num(D.h) + u]];
   }
+  function updateHistory() { $("histUndo").disabled = !past.length; $("histRedo").disabled = !future.length; }
   function updateSummary() {
     FIT_KEYS.forEach(function (k) { setIfIdle(k, S[k]); $(k).min = LIMITS[k][0]; $(k).max = LIMITS[k][1]; });
     var used = layout.usedCells(S.bins), total = S.cols * S.rows, gs = ex.groups(S.bins), big = oversized(S, S.bins);
@@ -417,6 +466,8 @@ import { createExport, zip } from "./export.js";
   }
   // Redraw everything from S. During a drag, fullRedraw === false skips the bin list.
   function update(fullRedraw) {
+    picked = picked.filter(function (id) { return id !== S.selId && S.bins.some(function (o) { return o.id === id; }); });
+    if (fullRedraw !== false && !drag) record();
     var b = sel(), D = b ? dims(b) : null;
     updateHeader(b, D);
     setPressed("view", S.view);
@@ -427,6 +478,7 @@ import { createExport, zip } from "./export.js";
     drawBins();
     if (fullRedraw !== false) drawList();
     show3D();
+    updateHistory();
     persist();
   }
 
@@ -462,18 +514,16 @@ import { createExport, zip } from "./export.js";
   $("suggest").addEventListener("click", function () { S.autoGrid = true; fixGrid(); update(); });
 
   $("autoFill").addEventListener("click", function () {
-    var u = snapshot("Removed the auto-filled bins.");
     var base = sel(), opts = base ? { h: base.h } : {};
     var added = layout.autoFill(S, S.bins, function (c, r, w, d) { return newBin(c, r, w, d, opts); });
     if (!added.length) { say("No empty cells to fill."); return; }
     S.bins = S.bins.concat(added);
     if (!sel()) S.selId = added[0].id;
-    sayUndo("Added " + added.length + " bin" + (added.length > 1 ? "s" : "") + " to fill the empty cells.", u); update();
+    sayUndo("Added " + added.length + " bin" + (added.length > 1 ? "s" : "") + " to fill the empty cells."); update();
   });
   $("clearAll").addEventListener("click", function () {
     if (!S.bins.length) return;
-    var u = snapshot("Put the bins back.");
-    S.bins = []; S.selId = null; sayUndo("Drawer cleared. Drag on the grid to draw a bin.", u); update();
+    S.bins = []; S.selId = null; picked = []; sayUndo("Drawer cleared. Drag on the grid to draw a bin."); update();
   });
 
   function resize(dw, dd) {
@@ -504,7 +554,22 @@ import { createExport, zip } from "./export.js";
   });
   document.querySelectorAll("[data-stack]").forEach(function (x) { x.addEventListener("click", function () { var b = sel(); if (b) { b.stack = x.getAttribute("data-stack") === "on"; update(); } }); });
   document.querySelectorAll("[data-split]").forEach(function (x) { x.addEventListener("click", function () { var b = sel(); if (b) { b.split = x.getAttribute("data-split"); update(); } }); });
-  $("lowerH").addEventListener("input", function () { var b = sel(); if (b) { b.lowerH = +$("lowerH").value; update(); } });
+  // the slider redraws as it moves and makes one undo step when let go
+  $("lowerH").addEventListener("input", function () { var b = sel(); if (b) { b.lowerH = +$("lowerH").value; update(false); } });
+  $("lowerH").addEventListener("change", function () { update(); });
+  // Bottom and top heights: type either one, the other takes up the rest of the bin's height.
+  [["stackBottom", true], ["stackTop", false]].forEach(function (f) {
+    $(f[0]).addEventListener("change", function () {
+      var b = sel(); if (!b) return;
+      var v = parseLength($(f[0]).value, S.units);
+      if (!isFinite(v)) { $(f[0]).classList.add("bad"); say("Couldn't read that height."); return; }
+      var full = binH(b), want = Math.round((f[1] ? v : full - v) * 10) / 10;
+      b.lowerH = Math.max(MIN_STACK_PART, Math.min(full - MIN_STACK_PART, want));
+      say(b.lowerH !== want ? "Each part of a stacked bin is " + len(MIN_STACK_PART) + " to " + len(full - MIN_STACK_PART) + " here." : "");
+      $(f[0]).classList.remove("bad"); $(f[0]).blur(); update();
+    });
+  });
+  document.querySelectorAll("[data-scoop]").forEach(function (x) { x.addEventListener("click", function () { var b = sel(); if (b) { b.scoop = x.getAttribute("data-scoop") === "on"; update(); } }); });
   $("liftTrays").addEventListener("change", function () { S.liftTrays = $("liftTrays").checked; update(); });
   Object.keys(STEP_LIMITS).forEach(function (k) {
     function bump(d) { var b = sel(); if (!b) return; var v = clamp(b[k] + d, STEP_LIMITS[k]); if (v !== b[k]) { b[k] = v; update(); } }
@@ -522,15 +587,22 @@ import { createExport, zip } from "./export.js";
   $("applyAll").addEventListener("click", function () {
     var b = sel(); if (!b) return;
     S.bins.forEach(function (o) { Object.keys(BIN_OPTS).forEach(function (k) { o[k] = b[k]; }); });
-    say("Applied bin " + idx(b) + "'s height, dividers and stacking to all " + S.bins.length + " bins."); update();
+    sayUndo("Applied bin " + idx(b) + "'s height, dividers, stacking and scoop to all " + S.bins.length + " bins."); update();
   });
-  $("delSel").addEventListener("click", function () { var b = sel(); if (b) removeBin(b.id); });
+  $("delSel").addEventListener("click", function () { removeBins(ids(selection())); });
+  $("splitW").addEventListener("click", function () { splitSel("w"); });
+  $("splitD").addEventListener("click", function () { splitSel("d"); });
+  $("merge").addEventListener("click", mergeSel);
+  $("histUndo").addEventListener("click", function () { histStep(true); });
+  $("histRedo").addEventListener("click", function () { histStep(false); });
   document.addEventListener("keydown", function (e) {
     if (/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || "")) return;
     if (e.key === "Delete" || e.key === "Backspace") {
-      var b = sel(); if (b) { e.preventDefault(); removeBin(b.id); }
-    } else if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "z" && undo) {
-      e.preventDefault(); doUndo();
+      if (sel()) { e.preventDefault(); removeBins(ids(selection())); }
+    } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+      e.preventDefault(); histStep(!e.shiftKey);
+    } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "y") {
+      e.preventDefault(); histStep(false);
     }
   });
 

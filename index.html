@@ -79,12 +79,15 @@ header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content:
 .floor .cell.taken { cursor: grab; }
 .floor .bin { fill: var(--bin-soft); stroke: var(--case); stroke-width: 1.5; pointer-events: none; }
 .floor .bin.on { fill: var(--bin); stroke: #fff; stroke-width: 2.5; }
+.floor .bin.picked { fill: var(--bin); stroke: #fff; stroke-width: 2; stroke-dasharray: 5 3; }
 .floor .stack-mark { fill: none; stroke: #1C1C1A; stroke-width: 1.2; stroke-dasharray: 3 2.5; opacity: .55; pointer-events: none; }
 .floor .bin-num { font-family: var(--display); font-weight: 800; fill: #1C1C1A; pointer-events: none; }
 .floor .axis { font-family: var(--mono); font-weight: 600; fill: var(--muted); }
 .map-note { font-size: .82rem; color: var(--muted); margin: 0; }
 
 .toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.toolbar .spacer { flex: 1; }
+.chip:disabled { opacity: .45; cursor: default; }
 .chip { font-family: var(--mono); font-size: .75rem; border: 1px solid var(--line); background: transparent; color: var(--ink); padding: 4px 8px; border-radius: 3px; cursor: pointer; }
 .chip:hover { border-color: var(--ink); }
 .chip span { color: var(--muted); font-family: var(--body); }
@@ -240,11 +243,14 @@ button:focus-visible, input:focus-visible, summary:focus-visible, li:focus-visib
       </section>
 
       <section class="group" aria-labelledby="h-layout">
-        <h2 id="h-layout">Layout <small>drag empty cells to draw · drag a bin to move it</small></h2>
+        <h2 id="h-layout">Layout <small>drag empty cells to draw · drag a bin to move it · shift-click to pick several</small></h2>
         <svg class="floor" id="floor" role="img" aria-label="Drawer floor grid. Drag on empty cells to draw a bin. Drag a bin to move it."></svg>
         <div class="toolbar">
           <button type="button" class="chip quiet" id="autoFill">Auto-fill empty cells</button>
           <button type="button" class="chip quiet" id="clearAll">Clear all</button>
+          <span class="spacer"></span>
+          <button type="button" class="chip quiet" id="histUndo" title="Undo (⌘Z)">Undo</button>
+          <button type="button" class="chip quiet" id="histRedo" title="Redo (⇧⌘Z)">Redo</button>
         </div>
         <p class="warn-note" id="bedNote" hidden></p>
         <ol class="binlist" id="binlist" aria-label="Bins"></ol>
@@ -277,8 +283,12 @@ button:focus-visible, input:focus-visible, summary:focus-visible, li:focus-visib
         <p class="map-note" id="stackNote" hidden></p>
         <div id="stackBox" class="nest" hidden>
           <div class="field">
-            <label for="lowerH">Bottom bin height</label><span class="val" id="lowerH-v"></span>
-            <input type="range" id="lowerH" step="0.5">
+            <div class="size-row">
+              <div class="field"><label for="stackBottom">Bottom bin <span class="u"></span></label><input type="text" inputmode="decimal" class="len" id="stackBottom" autocomplete="off"></div>
+              <div class="field"><label for="stackTop">Top tray <span class="u"></span></label><input type="text" inputmode="decimal" class="len" id="stackTop" autocomplete="off"></div>
+            </div>
+            <input type="range" id="lowerH" step="0.5" aria-label="Split between bottom bin and top tray">
+            <p class="map-note" id="stackHNote"></p>
           </div>
           <div class="row">
             <span class="lab">Top</span>
@@ -306,6 +316,21 @@ button:focus-visible, input:focus-visible, summary:focus-visible, li:focus-visib
           </div>
         </div>
 
+        <div class="row">
+          <span class="lab">Finger scoop</span>
+          <div class="seg" role="group" aria-label="Finger scoop" title="A curved ramp from the floor up the front wall of each compartment, so small parts slide out">
+            <button type="button" data-scoop="off">None</button>
+            <button type="button" data-scoop="on">Front of each compartment</button>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <button type="button" class="btn ghost small" id="splitW" title="Split into a left and a right bin">Split left | right</button>
+          <button type="button" class="btn ghost small" id="splitD" title="Split into a front and a back bin">Split front | back</button>
+          <button type="button" class="btn ghost small" id="merge" hidden>Merge</button>
+        </div>
+        <p class="map-note" id="mergeNote" hidden>To merge, pick bins that fill a rectangle with no gaps.</p>
+
         <div class="toolbar">
           <button type="button" class="btn ghost small" id="applyAll">Use this bin's options on all bins</button>
           <button type="button" class="btn ghost small" id="delSel">Delete bin</button>
@@ -324,6 +349,7 @@ button:focus-visible, input:focus-visible, summary:focus-visible, li:focus-visib
           <div class="field"><label for="draft">Taper per side (°)</label><input type="number" id="draft" step="0.1"></div>
           <div class="field"><label for="plugDepth">Stack plug depth</label><input type="number" id="plugDepth" step="0.5"></div>
           <div class="field"><label for="plugClear">Stack plug clearance per side</label><input type="number" id="plugClear" step="0.05"></div>
+          <div class="field"><label for="scoopR">Finger scoop radius</label><input type="number" id="scoopR" step="1"></div>
           <div class="field"><label for="bedX">Print bed X</label><input type="number" id="bedX" step="1"></div>
           <div class="field"><label for="bedY">Print bed Y</label><input type="number" id="bedY" step="1"></div>
           <button type="button" class="btn ghost small" id="resetAdv">Reset to defaults</button>
